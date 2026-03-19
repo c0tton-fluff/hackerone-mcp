@@ -51,6 +51,8 @@ var serveCmd = &cobra.Command{
 		tools.RegisterGetReportTool(server, client)
 		tools.RegisterAddCommentTool(server, client)
 		tools.RegisterUpdateStateTool(server, client)
+		tools.RegisterBulkUpdateStateTool(server, client)
+		tools.RegisterMarkDuplicateTool(server, client)
 		tools.RegisterAwardBountyTool(server, client)
 		tools.RegisterGetScopeTool(server, client)
 

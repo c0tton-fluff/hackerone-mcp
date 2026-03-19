@@ -34,6 +34,7 @@ type ReportFilter struct {
 	Severity      string
 	Reporter      string
 	Assignee      string
+	Keyword       string
 	CreatedAfter  string
 	CreatedBefore string
 	Sort          string
@@ -43,25 +44,37 @@ type ReportFilter struct {
 // Flattened report for tool output.
 
 type Report struct {
-	ID                string  `json:"id"`
-	Title             string  `json:"title"`
-	State             string  `json:"state"`
-	Severity          string  `json:"severity"`
-	CvssScore         float64 `json:"cvss_score,omitzero"`
-	CvssVector        string  `json:"cvss_vector,omitempty"`
-	WeaknessName      string  `json:"weakness_name,omitempty"`
-	CweID             string  `json:"cwe_id,omitempty"`
-	CreatedAt         string  `json:"created_at"`
-	TriagedAt         string  `json:"triaged_at,omitempty"`
-	ClosedAt          string  `json:"closed_at,omitempty"`
-	BountyAwardedAt   string  `json:"bounty_awarded_at,omitempty"`
-	BountyAmount      float64 `json:"bounty_amount,omitzero"`
-	ReporterUsername  string  `json:"reporter_username,omitempty"`
-	Assignee          string  `json:"assignee,omitempty"`
-	ProgramHandle     string  `json:"program_handle,omitempty"`
-	VulnInfo          string  `json:"vulnerability_information,omitempty"`
-	ImpactDescription string  `json:"impact,omitempty"`
-	AssetIdentifier   string  `json:"asset_identifier,omitempty"`
+	ID                string        `json:"id"`
+	Title             string        `json:"title"`
+	State             string        `json:"state"`
+	Severity          string        `json:"severity"`
+	CvssScore         float64       `json:"cvss_score,omitzero"`
+	CvssVector        string        `json:"cvss_vector,omitempty"`
+	CvssBreakdown     *CvssMetrics  `json:"cvss_breakdown,omitempty"`
+	WeaknessName      string        `json:"weakness_name,omitempty"`
+	CweID             string        `json:"cwe_id,omitempty"`
+	CreatedAt         string        `json:"created_at"`
+	TriagedAt         string        `json:"triaged_at,omitempty"`
+	ClosedAt          string        `json:"closed_at,omitempty"`
+	BountyAwardedAt   string        `json:"bounty_awarded_at,omitempty"`
+	BountyAmount      float64       `json:"bounty_amount,omitzero"`
+	ReporterUsername  string        `json:"reporter_username,omitempty"`
+	Assignee          string        `json:"assignee,omitempty"`
+	ProgramHandle     string        `json:"program_handle,omitempty"`
+	VulnInfo          string        `json:"vulnerability_information,omitempty"`
+	ImpactDescription string        `json:"impact,omitempty"`
+	AssetIdentifier   string        `json:"asset_identifier,omitempty"`
+}
+
+type CvssMetrics struct {
+	AttackVector    string `json:"attack_vector,omitempty"`
+	AttackComplexity string `json:"attack_complexity,omitempty"`
+	PrivRequired    string `json:"privileges_required,omitempty"`
+	UserInteraction string `json:"user_interaction,omitempty"`
+	Scope           string `json:"scope,omitempty"`
+	Confidentiality string `json:"confidentiality,omitempty"`
+	Integrity       string `json:"integrity,omitempty"`
+	Availability    string `json:"availability,omitempty"`
 }
 
 type Program struct {

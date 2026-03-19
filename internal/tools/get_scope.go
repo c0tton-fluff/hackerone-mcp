@@ -13,6 +13,7 @@ type GetScopeInput struct {
 }
 
 type GetScopeOutput struct {
+	Policy string           `json:"policy,omitempty"`
 	Scopes []map[string]any `json:"scopes"`
 	Count  int              `json:"count"`
 }
@@ -23,8 +24,9 @@ func RegisterGetScopeTool(
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_get_scope",
 		Description: fmt.Sprintf(
-			"Get program scope. Defaults to %s. Returns asset "+
-				"types, identifiers, and eligibility.",
+			"Get program scope and policy. Defaults to %s. "+
+				"Returns program policy text, asset types, "+
+				"identifiers, and eligibility.",
 			client.Program(),
 		),
 	}, getScopeHandler(client))
@@ -44,7 +46,10 @@ func getScopeHandler(
 				fmt.Errorf("get scope: %w", err)
 		}
 
+		policy, _ := client.GetProgramPolicy(ctx, input.Program)
+
 		output := GetScopeOutput{
+			Policy: policy,
 			Scopes: scopes,
 			Count:  len(scopes),
 		}

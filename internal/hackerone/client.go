@@ -210,6 +210,9 @@ func (c *Client) ListReports(
 	if f.Assignee != "" {
 		nextURL += "&filter[assignee][]=" + url.QueryEscape(f.Assignee)
 	}
+	if f.Keyword != "" {
+		nextURL += "&filter[keyword]=" + url.QueryEscape(f.Keyword)
+	}
 	if f.Sort != "" {
 		nextURL += "&sort=" + url.QueryEscape(f.Sort)
 	}
@@ -475,6 +478,102 @@ func (c *Client) GetActivities(
 	return activities, nil
 }
 
+// MarkDuplicate changes a report to duplicate state linking to the original.
+func (c *Client) MarkDuplicate(
+	ctx context.Context, reportID, originalID string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	if err := ValidateReportID(originalID); err != nil {
+		return fmt.Errorf("invalid original report ID: %w", err)
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "state-change",
+			"attributes": map[string]any{
+				"state":              "duplicate",
+				"original_report_id": originalID,
+			},
+		},
+	}
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/state_change", reportID), body,
+	)
+	return err
+}
+
+// GetProgramPolicy returns the policy body for a program.
+func (c *Client) GetProgramPolicy(
+	ctx context.Context, program string,
+) (string, error) {
+	handle := c.resolveProgram(program)
+	programID, err := c.getProgramID(ctx, handle)
+	if err != nil {
+		return "", err
+	}
+
+	raw, err := c.get(ctx, fmt.Sprintf("/programs/%s", programID))
+	if err != nil {
+		return "", err
+	}
+
+	var resp SingleResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return "", fmt.Errorf("parse program response: %w", err)
+	}
+
+	policy, _ := resp.Data.Attributes["policy"].(string)
+	return policy, nil
+}
+
+// parseCvssVector parses a CVSS 3.x vector string into components.
+func parseCvssVector(vector string) *CvssMetrics {
+	if vector == "" {
+		return nil
+	}
+
+	labels := map[string]map[string]string{
+		"AV": {"N": "Network", "A": "Adjacent", "L": "Local", "P": "Physical"},
+		"AC": {"L": "Low", "H": "High"},
+		"PR": {"N": "None", "L": "Low", "H": "High"},
+		"UI": {"N": "None", "R": "Required"},
+		"S":  {"U": "Unchanged", "C": "Changed"},
+		"C":  {"N": "None", "L": "Low", "H": "High"},
+		"I":  {"N": "None", "L": "Low", "H": "High"},
+		"A":  {"N": "None", "L": "Low", "H": "High"},
+	}
+
+	vals := make(map[string]string)
+	for _, part := range strings.Split(vector, "/") {
+		kv := strings.SplitN(part, ":", 2)
+		if len(kv) == 2 {
+			key := kv[0]
+			if m, ok := labels[key]; ok {
+				if label, ok := m[kv[1]]; ok {
+					vals[key] = label
+				} else {
+					vals[key] = kv[1]
+				}
+			}
+		}
+	}
+
+	if len(vals) == 0 {
+		return nil
+	}
+	return &CvssMetrics{
+		AttackVector:     vals["AV"],
+		AttackComplexity: vals["AC"],
+		PrivRequired:     vals["PR"],
+		UserInteraction:  vals["UI"],
+		Scope:            vals["S"],
+		Confidentiality:  vals["C"],
+		Integrity:        vals["I"],
+		Availability:     vals["A"],
+	}
+}
+
 func relAttrs(r Resource, name string) map[string]any {
 	rel, ok := r.Relationships[name]
 	if !ok {
@@ -510,6 +609,7 @@ func flattenReports(resources []Resource) []Report {
 			}
 			report.CvssVector, _ = sev["cvss_vector_string"].(string)
 		}
+		report.CvssBreakdown = parseCvssVector(report.CvssVector)
 		if report.Severity == "" {
 			report.Severity, _ = a["severity_rating"].(string)
 		}
