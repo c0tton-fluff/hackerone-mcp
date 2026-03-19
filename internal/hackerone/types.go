@@ -4,7 +4,7 @@ package hackerone
 
 type ListResponse struct {
 	Data  []Resource `json:"data"`
-	Links PageLinks  `json:"links,omitempty"`
+	Links PageLinks  `json:"links"`
 }
 
 type SingleResponse struct {
@@ -33,8 +33,10 @@ type ReportFilter struct {
 	State         string
 	Severity      string
 	Reporter      string
+	Assignee      string
 	CreatedAfter  string
 	CreatedBefore string
+	Sort          string
 	Limit         int
 }
 
@@ -45,7 +47,7 @@ type Report struct {
 	Title             string  `json:"title"`
 	State             string  `json:"state"`
 	Severity          string  `json:"severity"`
-	CvssScore         float64 `json:"cvss_score,omitempty"`
+	CvssScore         float64 `json:"cvss_score,omitzero"`
 	CvssVector        string  `json:"cvss_vector,omitempty"`
 	WeaknessName      string  `json:"weakness_name,omitempty"`
 	CweID             string  `json:"cwe_id,omitempty"`
@@ -53,9 +55,9 @@ type Report struct {
 	TriagedAt         string  `json:"triaged_at,omitempty"`
 	ClosedAt          string  `json:"closed_at,omitempty"`
 	BountyAwardedAt   string  `json:"bounty_awarded_at,omitempty"`
-	BountyAmount      float64 `json:"bounty_amount,omitempty"`
+	BountyAmount      float64 `json:"bounty_amount,omitzero"`
 	ReporterUsername  string  `json:"reporter_username,omitempty"`
-	ProgramHandle    string  `json:"program_handle,omitempty"`
+	ProgramHandle     string  `json:"program_handle,omitempty"`
 	VulnInfo          string  `json:"vulnerability_information,omitempty"`
 	ImpactDescription string  `json:"impact,omitempty"`
 	AssetIdentifier   string  `json:"asset_identifier,omitempty"`

@@ -12,8 +12,8 @@ type ListProgramsInput struct{}
 
 type ListProgramsOutput struct {
 	Programs []hackerone.Program `json:"programs"`
-	Count    int                `json:"count"`
-	Default  string             `json:"default"`
+	Count    int                 `json:"count"`
+	Default  string              `json:"default"`
 }
 
 func RegisterListProgramsTool(

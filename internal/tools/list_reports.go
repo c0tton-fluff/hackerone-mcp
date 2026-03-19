@@ -18,14 +18,16 @@ type ListReportsInput struct {
 	State         string `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
 	Severity      string `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
 	Reporter      string `json:"reporter,omitempty" jsonschema:"Filter by reporter username"`
+	Assignee      string `json:"assignee,omitempty" jsonschema:"Filter by assignee username"`
 	CreatedAfter  string `json:"created_after,omitempty" jsonschema:"Reports created after this date (ISO 8601, e.g. 2024-01-01)"`
 	CreatedBefore string `json:"created_before,omitempty" jsonschema:"Reports created before this date (ISO 8601)"`
+	Sort          string `json:"sort,omitempty" jsonschema:"Sort field (created_at, -created_at, severity_rating, -severity_rating, bounty_awarded_at, -bounty_awarded_at). Prefix with - for descending."`
 	Limit         int    `json:"limit,omitempty" jsonschema:"Max reports to return (default 25, max 1000). Auto-paginates."`
 }
 
 type ListReportsOutput struct {
 	Reports []hackerone.Report `json:"reports"`
-	Count   int               `json:"count"`
+	Count   int                `json:"count"`
 }
 
 func RegisterListReportsTool(
@@ -79,8 +81,10 @@ func listReportsHandler(
 			State:         input.State,
 			Severity:      input.Severity,
 			Reporter:      input.Reporter,
+			Assignee:      input.Assignee,
 			CreatedAfter:  input.CreatedAfter,
 			CreatedBefore: input.CreatedBefore,
+			Sort:          input.Sort,
 			Limit:         input.Limit,
 		})
 		if err != nil {

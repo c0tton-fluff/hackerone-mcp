@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -82,10 +83,7 @@ func (c *Client) do(
 		if retryAfter == 0 || attempt >= maxRetries {
 			return nil, err
 		}
-		backoff := time.Duration(1<<uint(attempt)) * time.Second
-		if retryAfter > backoff {
-			backoff = retryAfter
-		}
+		backoff := max(retryAfter, time.Duration(1<<uint(attempt))*time.Second)
 		select {
 		case <-time.After(backoff):
 		case <-ctx.Done():
@@ -207,6 +205,12 @@ func (c *Client) ListReports(
 	}
 	if f.CreatedBefore != "" {
 		nextURL += "&filter[created_at__lt]=" + url.QueryEscape(f.CreatedBefore)
+	}
+	if f.Assignee != "" {
+		nextURL += "&filter[assignee][]=" + url.QueryEscape(f.Assignee)
+	}
+	if f.Sort != "" {
+		nextURL += "&sort=" + url.QueryEscape(f.Sort)
 	}
 
 	var all []Report
@@ -421,9 +425,7 @@ func (c *Client) GetProgramScope(
 	scopes := make([]map[string]any, 0, len(resp.Data))
 	for _, r := range resp.Data {
 		scope := map[string]any{"id": r.ID}
-		for k, v := range r.Attributes {
-			scope[k] = v
-		}
+		maps.Copy(scope, r.Attributes)
 		scopes = append(scopes, scope)
 	}
 	return scopes, nil
