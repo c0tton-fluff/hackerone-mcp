@@ -36,9 +36,9 @@ func awardBountyHandler(
 		req *mcp.CallToolRequest,
 		input AwardBountyInput,
 	) (*mcp.CallToolResult, AwardBountyOutput, error) {
-		if input.ReportID == "" || input.Amount <= 0 {
+		if input.Amount <= 0 {
 			return nil, AwardBountyOutput{},
-				fmt.Errorf("report_id and positive amount are required")
+				fmt.Errorf("amount must be positive")
 		}
 
 		err := client.AwardBounty(
@@ -59,10 +59,6 @@ func awardBountyHandler(
 				input.Amount, input.ReportID,
 			),
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: output.Message},
-			},
-		}, output, nil
+		return textResult(output.Message), output, nil
 	}
 }

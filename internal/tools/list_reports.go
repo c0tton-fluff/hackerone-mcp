@@ -2,17 +2,11 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-var validListStates = map[string]bool{
-	"new": true, "triaged": true, "resolved": true,
-	"not-applicable": true, "informative": true, "duplicate": true, "spam": true,
-}
 
 var validSeverities = map[string]bool{
 	"none": true, "low": true, "medium": true, "high": true, "critical": true,
@@ -50,7 +44,7 @@ func listReportsHandler(
 		req *mcp.CallToolRequest,
 		input ListReportsInput,
 	) (*mcp.CallToolResult, ListReportsOutput, error) {
-		if input.State != "" && !validListStates[input.State] {
+		if input.State != "" && !hackerone.ValidStates[input.State] {
 			return nil, ListReportsOutput{},
 				fmt.Errorf("invalid state %q", input.State)
 		}
@@ -76,15 +70,10 @@ func listReportsHandler(
 			Reports: reports,
 			Count:   len(reports),
 		}
-
-		text, err := json.MarshalIndent(output, "", "  ")
+		result, err := jsonResult(output)
 		if err != nil {
-			return nil, ListReportsOutput{}, fmt.Errorf("marshal output: %w", err)
+			return nil, ListReportsOutput{}, err
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(text)},
-			},
-		}, output, nil
+		return result, output, nil
 	}
 }

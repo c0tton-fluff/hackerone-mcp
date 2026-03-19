@@ -36,11 +36,6 @@ func updateStateHandler(
 		req *mcp.CallToolRequest,
 		input UpdateStateInput,
 	) (*mcp.CallToolResult, UpdateStateOutput, error) {
-		if input.ReportID == "" || input.State == "" {
-			return nil, UpdateStateOutput{},
-				fmt.Errorf("report_id and state are required")
-		}
-
 		err := client.UpdateState(
 			ctx, input.ReportID, input.State, input.Message,
 		)
@@ -59,10 +54,6 @@ func updateStateHandler(
 				input.ReportID, input.State,
 			),
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: output.Message},
-			},
-		}, output, nil
+		return textResult(output.Message), output, nil
 	}
 }

@@ -58,16 +58,6 @@ func (c *Client) post(
 	return c.do(ctx, http.MethodPost, path, payload)
 }
 
-func (c *Client) patch(
-	ctx context.Context, path string, body any,
-) ([]byte, error) {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshal body: %w", err)
-	}
-	return c.do(ctx, http.MethodPatch, path, payload)
-}
-
 func (c *Client) do(
 	ctx context.Context,
 	method, path string,
@@ -86,7 +76,9 @@ func (c *Client) do(
 	}
 
 	req.SetBasicAuth(c.apiID, c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.http.Do(req)
@@ -196,8 +188,8 @@ func (c *Client) AddComment(
 	return err
 }
 
-// Valid report states for the HackerOne API.
-var validStates = map[string]bool{
+// ValidStates contains valid report states for the HackerOne API.
+var ValidStates = map[string]bool{
 	"new":            true,
 	"triaged":        true,
 	"resolved":       true,
@@ -215,7 +207,7 @@ func (c *Client) UpdateState(
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
-	if !validStates[state] {
+	if !ValidStates[state] {
 		return fmt.Errorf("invalid state %q: must be one of new, triaged, resolved, not-applicable, informative, duplicate, spam", state)
 	}
 	path := fmt.Sprintf("/reports/%s/state_change", reportID)
@@ -270,7 +262,7 @@ func (c *Client) GetProgramScope(
 ) ([]map[string]any, error) {
 	path := fmt.Sprintf(
 		"/programs/%s/structured_scopes?page[size]=100",
-		c.program,
+		url.PathEscape(c.program),
 	)
 
 	raw, err := c.get(ctx, path)

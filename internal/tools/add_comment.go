@@ -36,9 +36,9 @@ func addCommentHandler(
 		req *mcp.CallToolRequest,
 		input AddCommentInput,
 	) (*mcp.CallToolResult, AddCommentOutput, error) {
-		if input.ReportID == "" || input.Message == "" {
+		if input.Message == "" {
 			return nil, AddCommentOutput{},
-				fmt.Errorf("report_id and message are required")
+				fmt.Errorf("message is required")
 		}
 
 		err := client.AddComment(
@@ -60,10 +60,6 @@ func addCommentHandler(
 				vis, input.ReportID,
 			),
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: output.Message},
-			},
-		}, output, nil
+		return textResult(output.Message), output, nil
 	}
 }

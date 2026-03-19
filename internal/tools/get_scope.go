@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
@@ -46,14 +45,10 @@ func getScopeHandler(
 			Scopes: scopes,
 			Count:  len(scopes),
 		}
-		text, err := json.MarshalIndent(output, "", "  ")
+		result, err := jsonResult(output)
 		if err != nil {
-			return nil, GetScopeOutput{}, fmt.Errorf("marshal output: %w", err)
+			return nil, GetScopeOutput{}, err
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(text)},
-			},
-		}, output, nil
+		return result, output, nil
 	}
 }

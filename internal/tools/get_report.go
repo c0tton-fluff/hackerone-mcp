@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
@@ -34,11 +33,6 @@ func getReportHandler(
 		req *mcp.CallToolRequest,
 		input GetReportInput,
 	) (*mcp.CallToolResult, GetReportOutput, error) {
-		if input.ReportID == "" {
-			return nil, GetReportOutput{},
-				fmt.Errorf("report_id is required")
-		}
-
 		report, err := client.GetReport(ctx, input.ReportID)
 		if err != nil {
 			return nil, GetReportOutput{},
@@ -46,14 +40,10 @@ func getReportHandler(
 		}
 
 		output := GetReportOutput{Report: report}
-		text, err := json.MarshalIndent(output, "", "  ")
+		result, err := jsonResult(output)
 		if err != nil {
-			return nil, GetReportOutput{}, fmt.Errorf("marshal output: %w", err)
+			return nil, GetReportOutput{}, err
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(text)},
-			},
-		}, output, nil
+		return result, output, nil
 	}
 }
