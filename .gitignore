@@ -1,0 +1,26 @@
+# Compiled binary
+hackerone-mcp
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code local settings
+.claude/
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.*
+
+# Test coverage
+coverage.out
+
+# Review artifacts
+TODO.md
+TODO.md.bak
