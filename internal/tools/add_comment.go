@@ -36,6 +36,9 @@ func addCommentHandler(
 		req *mcp.CallToolRequest,
 		input AddCommentInput,
 	) (*mcp.CallToolResult, AddCommentOutput, error) {
+		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
+			return nil, AddCommentOutput{}, err
+		}
 		if input.Message == "" {
 			return nil, AddCommentOutput{},
 				fmt.Errorf("message is required")

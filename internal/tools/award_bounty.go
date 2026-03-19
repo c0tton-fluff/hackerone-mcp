@@ -36,6 +36,9 @@ func awardBountyHandler(
 		req *mcp.CallToolRequest,
 		input AwardBountyInput,
 	) (*mcp.CallToolResult, AwardBountyOutput, error) {
+		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
+			return nil, AwardBountyOutput{}, err
+		}
 		if input.Amount <= 0 {
 			return nil, AwardBountyOutput{},
 				fmt.Errorf("amount must be positive")
