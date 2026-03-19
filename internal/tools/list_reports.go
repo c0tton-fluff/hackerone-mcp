@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -13,9 +14,13 @@ var validSeverities = map[string]bool{
 }
 
 type ListReportsInput struct {
-	State    string `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
-	Severity string `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
-	Limit    int    `json:"limit,omitempty" jsonschema:"Max reports to return (default 25 max 100)"`
+	Program       string `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
+	State         string `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
+	Severity      string `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
+	Reporter      string `json:"reporter,omitempty" jsonschema:"Filter by reporter username"`
+	CreatedAfter  string `json:"created_after,omitempty" jsonschema:"Reports created after this date (ISO 8601, e.g. 2024-01-01)"`
+	CreatedBefore string `json:"created_before,omitempty" jsonschema:"Reports created before this date (ISO 8601)"`
+	Limit         int    `json:"limit,omitempty" jsonschema:"Max reports to return (default 25, max 1000). Auto-paginates."`
 }
 
 type ListReportsOutput struct {
@@ -29,8 +34,9 @@ func RegisterListReportsTool(
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_list_reports",
 		Description: fmt.Sprintf(
-			"List HackerOne reports for program %s. "+
-				"Filter by state and severity. Returns id/title/state/severity/created_at.",
+			"List HackerOne reports. Defaults to program %s. "+
+				"Auto-paginates. Filter by state, severity, reporter, "+
+				"date range.",
 			client.Program(),
 		),
 	}, listReportsHandler(client))
@@ -52,15 +58,31 @@ func listReportsHandler(
 			return nil, ListReportsOutput{},
 				fmt.Errorf("invalid severity %q", input.Severity)
 		}
-
-		limit := input.Limit
-		if limit <= 0 || limit > 100 {
-			limit = 25
+		for _, d := range []struct{ name, val string }{
+			{"created_after", input.CreatedAfter},
+			{"created_before", input.CreatedBefore},
+		} {
+			if d.val == "" {
+				continue
+			}
+			if _, err := time.Parse("2006-01-02", d.val); err != nil {
+				return nil, ListReportsOutput{},
+					fmt.Errorf(
+						"invalid %s %q: use YYYY-MM-DD format",
+						d.name, d.val,
+					)
+			}
 		}
 
-		reports, err := client.ListReports(
-			ctx, input.State, input.Severity, limit,
-		)
+		reports, err := client.ListReports(ctx, hackerone.ReportFilter{
+			Program:       input.Program,
+			State:         input.State,
+			Severity:      input.Severity,
+			Reporter:      input.Reporter,
+			CreatedAfter:  input.CreatedAfter,
+			CreatedBefore: input.CreatedBefore,
+			Limit:         input.Limit,
+		})
 		if err != nil {
 			return nil, ListReportsOutput{},
 				fmt.Errorf("list reports: %w", err)

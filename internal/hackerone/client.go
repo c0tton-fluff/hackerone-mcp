@@ -9,12 +9,18 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
 var validReportID = regexp.MustCompile(`^\d+$`)
 
-const baseURL = "https://api.hackerone.com/v1"
+const (
+	baseURL    = "https://api.hackerone.com/v1"
+	maxRetries = 3
+	maxReports = 1000
+)
 
 type Client struct {
 	http    *http.Client
@@ -34,7 +40,6 @@ func NewClient(apiID, apiKey, program string) *Client {
 
 func (c *Client) Program() string { return c.program }
 
-// ValidateReportID checks that a report ID is numeric only.
 func ValidateReportID(id string) error {
 	if !validReportID.MatchString(id) {
 		return fmt.Errorf("invalid report ID %q: must be numeric", id)
@@ -42,37 +47,65 @@ func ValidateReportID(id string) error {
 	return nil
 }
 
-func (c *Client) get(
-	ctx context.Context, path string,
-) ([]byte, error) {
-	return c.do(ctx, http.MethodGet, path, nil)
+func (c *Client) resolveProgram(handle string) string {
+	if handle != "" {
+		return handle
+	}
+	return c.program
 }
 
-func (c *Client) post(
-	ctx context.Context, path string, body any,
-) ([]byte, error) {
+func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
+	return c.do(ctx, http.MethodGet, baseURL+path, nil)
+}
+
+func (c *Client) getURL(ctx context.Context, fullURL string) ([]byte, error) {
+	return c.do(ctx, http.MethodGet, fullURL, nil)
+}
+
+func (c *Client) post(ctx context.Context, path string, body any) ([]byte, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal body: %w", err)
 	}
-	return c.do(ctx, http.MethodPost, path, payload)
+	return c.do(ctx, http.MethodPost, baseURL+path, payload)
 }
 
+// do executes an HTTP request with automatic retry on 429 rate limits.
 func (c *Client) do(
-	ctx context.Context,
-	method, path string,
-	body []byte,
+	ctx context.Context, method, reqURL string, body []byte,
 ) ([]byte, error) {
-	url := baseURL + path
+	for attempt := 0; ; attempt++ {
+		data, retryAfter, err := c.doOnce(ctx, method, reqURL, body)
+		if err == nil {
+			return data, nil
+		}
+		if retryAfter == 0 || attempt >= maxRetries {
+			return nil, err
+		}
+		backoff := time.Duration(1<<uint(attempt)) * time.Second
+		if retryAfter > backoff {
+			backoff = retryAfter
+		}
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
 
+// doOnce executes a single HTTP request. Returns retryAfter > 0 on 429.
+func (c *Client) doOnce(
+	ctx context.Context, method, reqURL string, body []byte,
+) ([]byte, time.Duration, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		bodyReader = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, bodyReader)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, 0, fmt.Errorf("create request: %w", err)
 	}
 
 	req.SetBasicAuth(c.apiID, c.apiKey)
@@ -83,59 +116,127 @@ func (c *Client) do(
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request %s %s: %w", method, path, err)
+		return nil, 0, fmt.Errorf("request %s %s: %w", method, reqURL, err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, 0, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		wait := parseRetryAfter(resp.Header)
+		return nil, wait, fmt.Errorf("rate limited (429)")
 	}
 
 	if resp.StatusCode >= 400 {
-		body := string(data)
-		if len(body) > 200 {
-			body = body[:200] + "..."
+		snippet := string(data)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
 		}
-		return nil, fmt.Errorf(
+		return nil, 0, fmt.Errorf(
 			"%s %s returned %d: %s",
-			method, path, resp.StatusCode, body,
+			method, reqURL, resp.StatusCode, snippet,
 		)
 	}
 
-	return data, nil
+	return data, 0, nil
 }
 
-// ListReports returns reports filtered by state and severity.
+func parseRetryAfter(h http.Header) time.Duration {
+	val := h.Get("Retry-After")
+	if val == "" {
+		return 2 * time.Second
+	}
+	var wait time.Duration
+	if secs, err := strconv.Atoi(val); err == nil {
+		wait = time.Duration(secs) * time.Second
+	} else if t, err := http.ParseTime(val); err == nil {
+		wait = time.Until(t)
+	}
+	if wait <= 0 {
+		wait = 2 * time.Second
+	}
+	if wait > 60*time.Second {
+		wait = 60 * time.Second
+	}
+	return wait
+}
+
+// ValidStates contains valid report states for the HackerOne API.
+var ValidStates = map[string]bool{
+	"new":            true,
+	"triaged":        true,
+	"resolved":       true,
+	"not-applicable": true,
+	"informative":    true,
+	"duplicate":      true,
+	"spam":           true,
+}
+
+// ListReports returns reports with filtering and auto-pagination.
 func (c *Client) ListReports(
-	ctx context.Context, state, severity string, pageSize int,
+	ctx context.Context, f ReportFilter,
 ) ([]Report, error) {
-	path := fmt.Sprintf(
-		"/reports?filter[program][]=%s&page[size]=%d",
-		url.QueryEscape(c.program), pageSize,
+	program := c.resolveProgram(f.Program)
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+	if limit > maxReports {
+		limit = maxReports
+	}
+
+	pageSize := min(limit, 100)
+	nextURL := fmt.Sprintf(
+		"%s/reports?filter[program][]=%s&page[size]=%d",
+		baseURL, url.QueryEscape(program), pageSize,
 	)
-	if state != "" {
-		path += "&filter[state][]=" + url.QueryEscape(state)
+	if f.State != "" {
+		nextURL += "&filter[state][]=" + url.QueryEscape(f.State)
 	}
-	if severity != "" {
-		path += "&filter[severity][]=" + url.QueryEscape(severity)
+	if f.Severity != "" {
+		nextURL += "&filter[severity][]=" + url.QueryEscape(f.Severity)
+	}
+	if f.Reporter != "" {
+		nextURL += "&filter[reporter][]=" + url.QueryEscape(f.Reporter)
+	}
+	if f.CreatedAfter != "" {
+		nextURL += "&filter[created_at__gt]=" + url.QueryEscape(f.CreatedAfter)
+	}
+	if f.CreatedBefore != "" {
+		nextURL += "&filter[created_at__lt]=" + url.QueryEscape(f.CreatedBefore)
 	}
 
-	raw, err := c.get(ctx, path)
-	if err != nil {
-		return nil, err
+	var all []Report
+	for nextURL != "" && len(all) < limit {
+		if !strings.HasPrefix(nextURL, baseURL) {
+			return nil, fmt.Errorf(
+				"pagination URL not under API base: %s", nextURL,
+			)
+		}
+		raw, err := c.getURL(ctx, nextURL)
+		if err != nil {
+			return nil, err
+		}
+
+		var resp ListResponse
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			return nil, fmt.Errorf("parse response: %w", err)
+		}
+
+		all = append(all, flattenReports(resp.Data)...)
+		nextURL = resp.Links.Next
 	}
 
-	var resp ListResponse
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+	if len(all) > limit {
+		all = all[:limit]
 	}
-
-	reports := flattenReports(resp.Data)
-	if reports == nil {
-		reports = []Report{}
+	if all == nil {
+		all = []Report{}
 	}
-	return reports, nil
+	return all, nil
 }
 
 // GetReport returns a single report by ID.
@@ -145,9 +246,8 @@ func (c *Client) GetReport(
 	if err := ValidateReportID(reportID); err != nil {
 		return nil, err
 	}
-	path := fmt.Sprintf("/reports/%s", reportID)
 
-	raw, err := c.get(ctx, path)
+	raw, err := c.get(ctx, fmt.Sprintf("/reports/%s", reportID))
 	if err != nil {
 		return nil, err
 	}
@@ -166,14 +266,11 @@ func (c *Client) GetReport(
 
 // AddComment posts an internal or public comment on a report.
 func (c *Client) AddComment(
-	ctx context.Context,
-	reportID, message string,
-	internal bool,
+	ctx context.Context, reportID, message string, internal bool,
 ) error {
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
-	path := fmt.Sprintf("/reports/%s/activities", reportID)
 	body := map[string]any{
 		"data": map[string]any{
 			"type": "activity-comment",
@@ -183,34 +280,26 @@ func (c *Client) AddComment(
 			},
 		},
 	}
-
-	_, err := c.post(ctx, path, body)
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/activities", reportID), body,
+	)
 	return err
-}
-
-// ValidStates contains valid report states for the HackerOne API.
-var ValidStates = map[string]bool{
-	"new":            true,
-	"triaged":        true,
-	"resolved":       true,
-	"not-applicable": true,
-	"informative":    true,
-	"duplicate":      true,
-	"spam":           true,
 }
 
 // UpdateState changes report state (e.g. triaged, resolved).
 func (c *Client) UpdateState(
-	ctx context.Context,
-	reportID, state, message string,
+	ctx context.Context, reportID, state, message string,
 ) error {
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
 	if !ValidStates[state] {
-		return fmt.Errorf("invalid state %q: must be one of new, triaged, resolved, not-applicable, informative, duplicate, spam", state)
+		return fmt.Errorf(
+			"invalid state %q: must be one of new, triaged, resolved, "+
+				"not-applicable, informative, duplicate, spam",
+			state,
+		)
 	}
-	path := fmt.Sprintf("/reports/%s/state_change", reportID)
 	body := map[string]any{
 		"data": map[string]any{
 			"type": "state-change",
@@ -220,8 +309,9 @@ func (c *Client) UpdateState(
 			},
 		},
 	}
-
-	_, err := c.post(ctx, path, body)
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/state_change", reportID), body,
+	)
 	return err
 }
 
@@ -230,18 +320,17 @@ const MaxBountyAmount = 50000.0
 
 // AwardBounty grants a bounty on a report.
 func (c *Client) AwardBounty(
-	ctx context.Context,
-	reportID string,
-	amount float64,
-	message string,
+	ctx context.Context, reportID string, amount float64, message string,
 ) error {
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
 	if amount > MaxBountyAmount {
-		return fmt.Errorf("bounty amount $%.2f exceeds maximum $%.2f", amount, MaxBountyAmount)
+		return fmt.Errorf(
+			"bounty amount $%.2f exceeds maximum $%.2f",
+			amount, MaxBountyAmount,
+		)
 	}
-	path := fmt.Sprintf("/reports/%s/bounties", reportID)
 	body := map[string]any{
 		"data": map[string]any{
 			"type": "bounty",
@@ -251,19 +340,40 @@ func (c *Client) AwardBounty(
 			},
 		},
 	}
-
-	_, err := c.post(ctx, path, body)
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/bounties", reportID), body,
+	)
 	return err
 }
 
-// getProgramID resolves a program handle to its numeric ID.
-func (c *Client) getProgramID(ctx context.Context) (string, error) {
-	path := fmt.Sprintf(
-		"/me/programs?filter[handle]=%s&page[size]=1",
-		url.QueryEscape(c.program),
-	)
+// ListPrograms returns all programs accessible to the API token.
+func (c *Client) ListPrograms(ctx context.Context) ([]Program, error) {
+	raw, err := c.get(ctx, "/me/programs?page[size]=100")
+	if err != nil {
+		return nil, err
+	}
 
-	raw, err := c.get(ctx, path)
+	var resp ListResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	programs := make([]Program, 0, len(resp.Data))
+	for _, r := range resp.Data {
+		p := Program{ID: r.ID}
+		if h, ok := r.Attributes["handle"].(string); ok {
+			p.Handle = h
+		}
+		programs = append(programs, p)
+	}
+	return programs, nil
+}
+
+// getProgramID resolves a program handle to its numeric ID.
+func (c *Client) getProgramID(
+	ctx context.Context, handle string,
+) (string, error) {
+	raw, err := c.get(ctx, "/me/programs?page[size]=100")
 	if err != nil {
 		return "", fmt.Errorf("lookup program ID: %w", err)
 	}
@@ -272,17 +382,23 @@ func (c *Client) getProgramID(ctx context.Context) (string, error) {
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return "", fmt.Errorf("parse program response: %w", err)
 	}
-	if len(resp.Data) == 0 {
-		return "", fmt.Errorf("program %q not found", c.program)
+
+	for _, p := range resp.Data {
+		if h, _ := p.Attributes["handle"].(string); h == handle {
+			return p.ID, nil
+		}
 	}
-	return resp.Data[0].ID, nil
+	return "", fmt.Errorf(
+		"program %q not found in accessible programs", handle,
+	)
 }
 
-// GetProgramScope returns structured scopes for the program.
+// GetProgramScope returns structured scopes for a program.
 func (c *Client) GetProgramScope(
-	ctx context.Context,
+	ctx context.Context, program string,
 ) ([]map[string]any, error) {
-	programID, err := c.getProgramID(ctx)
+	handle := c.resolveProgram(program)
+	programID, err := c.getProgramID(ctx, handle)
 	if err != nil {
 		return nil, err
 	}
@@ -313,49 +429,96 @@ func (c *Client) GetProgramScope(
 	return scopes, nil
 }
 
+func relAttrs(r Resource, name string) map[string]any {
+	rel, ok := r.Relationships[name]
+	if !ok {
+		return nil
+	}
+	data, ok := rel.Data.(map[string]any)
+	if !ok {
+		return nil
+	}
+	attrs, _ := data["attributes"].(map[string]any)
+	return attrs
+}
+
 func flattenReports(resources []Resource) []Report {
 	reports := make([]Report, 0, len(resources))
 	for _, r := range resources {
 		report := Report{ID: r.ID}
 		a := r.Attributes
-		if v, ok := a["title"].(string); ok {
-			report.Title = v
-		}
-		if v, ok := a["state"].(string); ok {
-			report.State = v
-		}
-		if v, ok := a["created_at"].(string); ok {
-			report.CreatedAt = v
-		}
-		if v, ok := a["triaged_at"].(string); ok {
-			report.TriagedAt = v
-		}
-		if v, ok := a["vulnerability_information"].(string); ok {
-			report.VulnInfo = v
-		}
-		if v, ok := a["severity_rating"].(string); ok {
-			report.Severity = v
-		}
-		if v, ok := a["weakness"].(string); ok {
-			report.WeaknessName = v
-		}
-		if v, ok := a["bounty_awarded_at"].(string); ok {
-			report.BountyAwardedAt = v
-		}
-		if v, ok := a["impact"].(string); ok {
-			report.ImpactDescription = v
-		}
-		// Reporter username from relationships
-		if rel, ok := r.Relationships["reporter"]; ok {
-			if data, ok := rel.Data.(map[string]any); ok {
-				if attrs, ok := data["attributes"].(map[string]any); ok {
-					if u, ok := attrs["username"].(string); ok {
-						report.ReporterUsername = u
-					}
-				}
+
+		report.Title, _ = a["title"].(string)
+		report.State, _ = a["state"].(string)
+		report.CreatedAt, _ = a["created_at"].(string)
+		report.TriagedAt, _ = a["triaged_at"].(string)
+		report.ClosedAt, _ = a["closed_at"].(string)
+		report.BountyAwardedAt, _ = a["bounty_awarded_at"].(string)
+		report.VulnInfo, _ = a["vulnerability_information"].(string)
+		report.ImpactDescription, _ = a["impact"].(string)
+
+		if sev := relAttrs(r, "severity"); sev != nil {
+			report.Severity, _ = sev["rating"].(string)
+			if score, ok := sev["score"].(float64); ok {
+				report.CvssScore = score
 			}
+			report.CvssVector, _ = sev["cvss_vector_string"].(string)
 		}
+		if report.Severity == "" {
+			report.Severity, _ = a["severity_rating"].(string)
+		}
+
+		if weak := relAttrs(r, "weakness"); weak != nil {
+			report.WeaknessName, _ = weak["name"].(string)
+			report.CweID, _ = weak["external_id"].(string)
+		}
+
+		if rep := relAttrs(r, "reporter"); rep != nil {
+			report.ReporterUsername, _ = rep["username"].(string)
+		}
+
+		if prog := relAttrs(r, "program"); prog != nil {
+			report.ProgramHandle, _ = prog["handle"].(string)
+		}
+
+		if scope := relAttrs(r, "structured_scope"); scope != nil {
+			report.AssetIdentifier, _ = scope["asset_identifier"].(string)
+		}
+
+		report.BountyAmount = sumBounties(r)
+
 		reports = append(reports, report)
 	}
 	return reports
+}
+
+func sumBounties(r Resource) float64 {
+	rel, ok := r.Relationships["bounties"]
+	if !ok {
+		return 0
+	}
+	arr, ok := rel.Data.([]any)
+	if !ok {
+		return 0
+	}
+	var total float64
+	for _, item := range arr {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		attrs, ok := m["attributes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		switch v := attrs["amount"].(type) {
+		case float64:
+			total += v
+		case string:
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				total += f
+			}
+		}
+	}
+	return total
 }

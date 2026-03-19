@@ -46,6 +46,7 @@ var serveCmd = &cobra.Command{
 			nil,
 		)
 
+		tools.RegisterListProgramsTool(server, client)
 		tools.RegisterListReportsTool(server, client)
 		tools.RegisterGetReportTool(server, client)
 		tools.RegisterAddCommentTool(server, client)

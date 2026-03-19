@@ -8,7 +8,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type GetScopeInput struct{}
+type GetScopeInput struct {
+	Program string `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
+}
 
 type GetScopeOutput struct {
 	Scopes []map[string]any `json:"scopes"`
@@ -21,7 +23,8 @@ func RegisterGetScopeTool(
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_get_scope",
 		Description: fmt.Sprintf(
-			"Get program scope for %s. Returns asset types, identifiers, and eligibility.",
+			"Get program scope. Defaults to %s. Returns asset "+
+				"types, identifiers, and eligibility.",
 			client.Program(),
 		),
 	}, getScopeHandler(client))
@@ -35,7 +38,7 @@ func getScopeHandler(
 		req *mcp.CallToolRequest,
 		input GetScopeInput,
 	) (*mcp.CallToolResult, GetScopeOutput, error) {
-		scopes, err := client.GetProgramScope(ctx)
+		scopes, err := client.GetProgramScope(ctx, input.Program)
 		if err != nil {
 			return nil, GetScopeOutput{},
 				fmt.Errorf("get scope: %w", err)
