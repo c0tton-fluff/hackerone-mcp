@@ -13,15 +13,18 @@ type GetReportInput struct {
 }
 
 type GetReportOutput struct {
-	Report *hackerone.Report `json:"report"`
+	Report     *hackerone.Report     `json:"report"`
+	Activities []hackerone.Activity  `json:"activities"`
 }
 
 func RegisterGetReportTool(
 	server *mcp.Server, client *hackerone.Client,
 ) {
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "h1_get_report",
-		Description: "Get full details of a HackerOne report by ID. Returns title, state, severity, vulnerability info, reporter, and timeline.",
+		Name: "h1_get_report",
+		Description: "Get full details of a HackerOne report by ID. " +
+			"Returns report metadata, vulnerability info, and " +
+			"activity timeline (comments, state changes, bounties).",
 	}, getReportHandler(client))
 }
 
@@ -39,7 +42,16 @@ func getReportHandler(
 				fmt.Errorf("get report %s: %w", input.ReportID, err)
 		}
 
-		output := GetReportOutput{Report: report}
+		activities, err := client.GetActivities(ctx, input.ReportID)
+		if err != nil {
+			return nil, GetReportOutput{},
+				fmt.Errorf("get activities for %s: %w", input.ReportID, err)
+		}
+
+		output := GetReportOutput{
+			Report:     report,
+			Activities: activities,
+		}
 		result, err := jsonResult(output)
 		if err != nil {
 			return nil, GetReportOutput{}, err

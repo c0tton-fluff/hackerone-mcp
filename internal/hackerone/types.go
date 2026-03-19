@@ -57,6 +57,7 @@ type Report struct {
 	BountyAwardedAt   string  `json:"bounty_awarded_at,omitempty"`
 	BountyAmount      float64 `json:"bounty_amount,omitzero"`
 	ReporterUsername  string  `json:"reporter_username,omitempty"`
+	Assignee          string  `json:"assignee,omitempty"`
 	ProgramHandle     string  `json:"program_handle,omitempty"`
 	VulnInfo          string  `json:"vulnerability_information,omitempty"`
 	ImpactDescription string  `json:"impact,omitempty"`
@@ -66,4 +67,13 @@ type Report struct {
 type Program struct {
 	ID     string `json:"id"`
 	Handle string `json:"handle"`
+}
+
+type Activity struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Message   string `json:"message,omitempty"`
+	Internal  bool   `json:"internal,omitzero"`
+	CreatedAt string `json:"created_at"`
+	Actor     string `json:"actor,omitempty"`
 }

@@ -24,10 +24,11 @@ const (
 )
 
 type Client struct {
-	http    *http.Client
-	apiID   string
-	apiKey  string
-	program string
+	http         *http.Client
+	apiID        string
+	apiKey       string
+	program      string
+	programCache []Program
 }
 
 func NewClient(apiID, apiKey, program string) *Client {
@@ -350,8 +351,12 @@ func (c *Client) AwardBounty(
 	return err
 }
 
-// ListPrograms returns all programs accessible to the API token.
-func (c *Client) ListPrograms(ctx context.Context) ([]Program, error) {
+// cachedPrograms fetches and caches the program list (one API call per session).
+func (c *Client) cachedPrograms(ctx context.Context) ([]Program, error) {
+	if c.programCache != nil {
+		return c.programCache, nil
+	}
+
 	raw, err := c.get(ctx, "/me/programs?page[size]=100")
 	if err != nil {
 		return nil, err
@@ -370,25 +375,26 @@ func (c *Client) ListPrograms(ctx context.Context) ([]Program, error) {
 		}
 		programs = append(programs, p)
 	}
+	c.programCache = programs
 	return programs, nil
+}
+
+// ListPrograms returns all programs accessible to the API token.
+func (c *Client) ListPrograms(ctx context.Context) ([]Program, error) {
+	return c.cachedPrograms(ctx)
 }
 
 // getProgramID resolves a program handle to its numeric ID.
 func (c *Client) getProgramID(
 	ctx context.Context, handle string,
 ) (string, error) {
-	raw, err := c.get(ctx, "/me/programs?page[size]=100")
+	programs, err := c.cachedPrograms(ctx)
 	if err != nil {
 		return "", fmt.Errorf("lookup program ID: %w", err)
 	}
 
-	var resp ListResponse
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return "", fmt.Errorf("parse program response: %w", err)
-	}
-
-	for _, p := range resp.Data {
-		if h, _ := p.Attributes["handle"].(string); h == handle {
+	for _, p := range programs {
+		if p.Handle == handle {
 			return p.ID, nil
 		}
 	}
@@ -429,6 +435,44 @@ func (c *Client) GetProgramScope(
 		scopes = append(scopes, scope)
 	}
 	return scopes, nil
+}
+
+// GetActivities returns the activity timeline for a report.
+func (c *Client) GetActivities(
+	ctx context.Context, reportID string,
+) ([]Activity, error) {
+	if err := ValidateReportID(reportID); err != nil {
+		return nil, err
+	}
+
+	path := fmt.Sprintf(
+		"/reports/%s/activities?page[size]=100", reportID,
+	)
+	raw, err := c.get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp ListResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("parse activities: %w", err)
+	}
+
+	activities := make([]Activity, 0, len(resp.Data))
+	for _, r := range resp.Data {
+		act := Activity{
+			ID:   r.ID,
+			Type: r.Type,
+		}
+		act.Message, _ = r.Attributes["message"].(string)
+		act.Internal, _ = r.Attributes["internal"].(bool)
+		act.CreatedAt, _ = r.Attributes["created_at"].(string)
+		if actor := relAttrs(r, "actor"); actor != nil {
+			act.Actor, _ = actor["username"].(string)
+		}
+		activities = append(activities, act)
+	}
+	return activities, nil
 }
 
 func relAttrs(r Resource, name string) map[string]any {
@@ -477,6 +521,10 @@ func flattenReports(resources []Resource) []Report {
 
 		if rep := relAttrs(r, "reporter"); rep != nil {
 			report.ReporterUsername, _ = rep["username"].(string)
+		}
+
+		if assignee := relAttrs(r, "assignee"); assignee != nil {
+			report.Assignee, _ = assignee["username"].(string)
 		}
 
 		if prog := relAttrs(r, "program"); prog != nil {
