@@ -256,13 +256,40 @@ func (c *Client) AwardBounty(
 	return err
 }
 
+// getProgramID resolves a program handle to its numeric ID.
+func (c *Client) getProgramID(ctx context.Context) (string, error) {
+	path := fmt.Sprintf(
+		"/me/programs?filter[handle]=%s&page[size]=1",
+		url.QueryEscape(c.program),
+	)
+
+	raw, err := c.get(ctx, path)
+	if err != nil {
+		return "", fmt.Errorf("lookup program ID: %w", err)
+	}
+
+	var resp ListResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return "", fmt.Errorf("parse program response: %w", err)
+	}
+	if len(resp.Data) == 0 {
+		return "", fmt.Errorf("program %q not found", c.program)
+	}
+	return resp.Data[0].ID, nil
+}
+
 // GetProgramScope returns structured scopes for the program.
 func (c *Client) GetProgramScope(
 	ctx context.Context,
 ) ([]map[string]any, error) {
+	programID, err := c.getProgramID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	path := fmt.Sprintf(
 		"/programs/%s/structured_scopes?page[size]=100",
-		url.PathEscape(c.program),
+		url.PathEscape(programID),
 	)
 
 	raw, err := c.get(ctx, path)
