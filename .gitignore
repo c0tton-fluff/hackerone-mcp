@@ -11,6 +11,9 @@ hackerone-mcp
 # Claude Code local settings
 .claude/
 
+# MCP server config (contains credential references)
+.mcp.json
+
 # macOS
 .DS_Store
 
