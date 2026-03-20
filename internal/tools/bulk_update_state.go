@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -37,7 +38,10 @@ func RegisterBulkUpdateStateTool(
 	}, bulkUpdateStateHandler(client))
 }
 
-const maxBulkReports = 25
+const (
+	maxBulkReports = 25
+	bulkWorkers    = 5
+)
 
 func bulkUpdateStateHandler(
 	client *hackerone.Client,
@@ -63,23 +67,40 @@ func bulkUpdateStateHandler(
 				fmt.Errorf("invalid state %q", input.State)
 		}
 
-		results := make([]BulkUpdateResult, 0, len(input.ReportIDs))
-		var succeeded, failed int
+		results := make([]BulkUpdateResult, len(input.ReportIDs))
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, bulkWorkers)
 
-		for _, id := range input.ReportIDs {
-			if err := ctx.Err(); err != nil {
-				return nil, BulkUpdateStateOutput{}, err
+		for i, id := range input.ReportIDs {
+			results[i].ReportID = id
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				results[i].Error = ctxErr.Error()
+				continue
 			}
-			r := BulkUpdateResult{ReportID: id}
-			err := client.UpdateState(ctx, id, input.State, input.Message)
-			if err != nil {
-				r.Error = err.Error()
-				failed++
-			} else {
-				r.Success = true
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(idx int, reportID string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				err := client.UpdateState(
+					ctx, reportID, input.State, input.Message,
+				)
+				if err != nil {
+					results[idx].Error = err.Error()
+				} else {
+					results[idx].Success = true
+				}
+			}(i, id)
+		}
+		wg.Wait()
+
+		var succeeded, failed int
+		for _, r := range results {
+			if r.Success {
 				succeeded++
+			} else if r.Error != "" {
+				failed++
 			}
-			results = append(results, r)
 		}
 
 		output := BulkUpdateStateOutput{

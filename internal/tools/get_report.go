@@ -35,14 +35,24 @@ func getReportHandler(
 		req *mcp.CallToolRequest,
 		input GetReportInput,
 	) (*mcp.CallToolResult, GetReportOutput, error) {
+		var activities []hackerone.Activity
+		var actErr error
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			activities, actErr = client.GetActivities(
+				ctx, input.ReportID,
+			)
+		}()
+
 		report, err := client.GetReport(ctx, input.ReportID)
+		<-done
+
 		if err != nil {
 			return nil, GetReportOutput{}, err
 		}
-
-		activities, err := client.GetActivities(ctx, input.ReportID)
-		if err != nil {
-			return nil, GetReportOutput{}, err
+		if actErr != nil {
+			return nil, GetReportOutput{}, actErr
 		}
 
 		output := GetReportOutput{

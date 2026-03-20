@@ -40,13 +40,20 @@ func getScopeHandler(
 		req *mcp.CallToolRequest,
 		input GetScopeInput,
 	) (*mcp.CallToolResult, GetScopeOutput, error) {
+		var policy string
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			policy, _ = client.GetProgramPolicy(ctx, input.Program)
+		}()
+
 		scopes, err := client.GetProgramScope(ctx, input.Program)
+		<-done
+
 		if err != nil {
 			return nil, GetScopeOutput{},
 				fmt.Errorf("get scope: %w", err)
 		}
-
-		policy, _ := client.GetProgramPolicy(ctx, input.Program)
 
 		output := GetScopeOutput{
 			Policy: policy,
