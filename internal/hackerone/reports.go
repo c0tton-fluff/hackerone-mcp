@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
+	"strconv"
 )
 
 // ListReports returns reports with filtering and auto-pagination.
@@ -21,64 +21,35 @@ func (c *Client) ListReports(
 		limit = maxReports
 	}
 
-	pageSize := min(limit, 100)
-	nextURL := fmt.Sprintf(
-		"%s/reports?filter[program][]=%s&page[size]=%d",
-		baseURL, url.QueryEscape(program), pageSize,
-	)
-	if f.State != "" {
-		nextURL += "&filter[state][]=" + url.QueryEscape(f.State)
-	}
-	if f.Severity != "" {
-		nextURL += "&filter[severity][]=" + url.QueryEscape(f.Severity)
-	}
-	if f.Reporter != "" {
-		nextURL += "&filter[reporter][]=" + url.QueryEscape(f.Reporter)
-	}
-	if f.CreatedAfter != "" {
-		nextURL += "&filter[created_at__gt]=" + url.QueryEscape(f.CreatedAfter)
-	}
-	if f.CreatedBefore != "" {
-		nextURL += "&filter[created_at__lt]=" + url.QueryEscape(f.CreatedBefore)
-	}
-	if f.Assignee != "" {
-		nextURL += "&filter[assignee][]=" + url.QueryEscape(f.Assignee)
-	}
-	if f.Keyword != "" {
-		nextURL += "&filter[keyword]=" + url.QueryEscape(f.Keyword)
-	}
-	if f.Sort != "" {
-		nextURL += "&sort=" + url.QueryEscape(f.Sort)
-	}
-
-	var all []Report
-	for nextURL != "" && len(all) < limit {
-		if !strings.HasPrefix(nextURL, baseURL) {
-			return nil, fmt.Errorf(
-				"pagination URL not under API base: %s", nextURL,
-			)
+	params := url.Values{}
+	params.Set("filter[program][]", program)
+	params.Set("page[size]", strconv.Itoa(min(limit, 100)))
+	for _, kv := range []struct{ key, val string }{
+		{"filter[state][]", f.State},
+		{"filter[severity][]", f.Severity},
+		{"filter[reporter][]", f.Reporter},
+		{"filter[created_at__gt]", f.CreatedAfter},
+		{"filter[created_at__lt]", f.CreatedBefore},
+		{"filter[assignee][]", f.Assignee},
+		{"filter[keyword]", f.Keyword},
+		{"sort", f.Sort},
+	} {
+		if kv.val != "" {
+			params.Set(kv.key, kv.val)
 		}
-		raw, err := c.getURL(ctx, nextURL)
-		if err != nil {
-			return nil, err
-		}
-
-		var resp ListResponse
-		if err := json.Unmarshal(raw, &resp); err != nil {
-			return nil, fmt.Errorf("parse response: %w", err)
-		}
-
-		all = append(all, flattenReports(resp.Data)...)
-		nextURL = resp.Links.Next
 	}
 
-	if len(all) > limit {
-		all = all[:limit]
+	firstURL := c.baseURL + "/reports?" + params.Encode()
+	resources, err := c.fetchAllPages(ctx, firstURL, limit)
+	if err != nil {
+		return nil, err
 	}
-	if all == nil {
-		all = []Report{}
+
+	reports := flattenReports(resources)
+	if reports == nil {
+		reports = []Report{}
 	}
-	return all, nil
+	return reports, nil
 }
 
 // GetReport returns a single report by ID.
@@ -215,7 +186,7 @@ func (c *Client) MarkDuplicate(
 	return err
 }
 
-// GetActivities returns the activity timeline for a report.
+// GetActivities returns the full activity timeline for a report.
 func (c *Client) GetActivities(
 	ctx context.Context, reportID string,
 ) ([]Activity, error) {
@@ -223,21 +194,17 @@ func (c *Client) GetActivities(
 		return nil, err
 	}
 
-	path := fmt.Sprintf(
-		"/reports/%s/activities?page[size]=100", reportID,
+	firstURL := fmt.Sprintf(
+		"%s/reports/%s/activities?page[size]=100",
+		c.baseURL, reportID,
 	)
-	raw, err := c.get(ctx, path)
+	resources, err := c.fetchAllPages(ctx, firstURL, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	var resp ListResponse
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, fmt.Errorf("parse activities: %w", err)
-	}
-
-	activities := make([]Activity, 0, len(resp.Data))
-	for _, r := range resp.Data {
+	activities := make([]Activity, 0, len(resources))
+	for _, r := range resources {
 		act := Activity{
 			ID:   r.ID,
 			Type: r.Type,

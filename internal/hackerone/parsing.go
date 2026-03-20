@@ -125,8 +125,13 @@ func flattenOneReport(r Resource) Report {
 func extractSeverity(report *Report, r Resource) {
 	if sev := relAttrs(r, "severity"); sev != nil {
 		report.Severity, _ = sev["rating"].(string)
-		if score, ok := sev["score"].(float64); ok {
-			report.CvssScore = score
+		switch v := sev["score"].(type) {
+		case float64:
+			report.CvssScore = v
+		case string:
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				report.CvssScore = f
+			}
 		}
 		report.CvssVector, _ = sev["cvss_vector_string"].(string)
 	}

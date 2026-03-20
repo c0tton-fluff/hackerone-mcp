@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -38,14 +37,12 @@ func getReportHandler(
 	) (*mcp.CallToolResult, GetReportOutput, error) {
 		report, err := client.GetReport(ctx, input.ReportID)
 		if err != nil {
-			return nil, GetReportOutput{},
-				fmt.Errorf("get report %s: %w", input.ReportID, err)
+			return nil, GetReportOutput{}, err
 		}
 
 		activities, err := client.GetActivities(ctx, input.ReportID)
 		if err != nil {
-			return nil, GetReportOutput{},
-				fmt.Errorf("get activities for %s: %w", input.ReportID, err)
+			return nil, GetReportOutput{}, err
 		}
 
 		output := GetReportOutput{

@@ -8,11 +8,12 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
 func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
-	return c.do(ctx, http.MethodGet, baseURL+path, nil)
+	return c.do(ctx, http.MethodGet, c.baseURL+path, nil)
 }
 
 func (c *Client) getURL(ctx context.Context, fullURL string) ([]byte, error) {
@@ -24,7 +25,7 @@ func (c *Client) post(ctx context.Context, path string, body any) ([]byte, error
 	if err != nil {
 		return nil, fmt.Errorf("marshal body: %w", err)
 	}
-	return c.do(ctx, http.MethodPost, baseURL+path, payload)
+	return c.do(ctx, http.MethodPost, c.baseURL+path, payload)
 }
 
 // do executes an HTTP request with automatic retry on 429 rate limits.
@@ -96,6 +97,39 @@ func (c *Client) doOnce(
 	}
 
 	return data, 0, nil
+}
+
+// fetchAllPages fetches all pages of a paginated JSON:API endpoint.
+// If limit > 0, stops after collecting that many resources.
+func (c *Client) fetchAllPages(
+	ctx context.Context, firstURL string, limit int,
+) ([]Resource, error) {
+	var all []Resource
+	nextURL := firstURL
+	for nextURL != "" {
+		if limit > 0 && len(all) >= limit {
+			break
+		}
+		if !strings.HasPrefix(nextURL, c.baseURL) {
+			return nil, fmt.Errorf(
+				"pagination URL not under API base: %s", nextURL,
+			)
+		}
+		raw, err := c.getURL(ctx, nextURL)
+		if err != nil {
+			return nil, err
+		}
+		var resp ListResponse
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			return nil, fmt.Errorf("parse response: %w", err)
+		}
+		all = append(all, resp.Data...)
+		nextURL = resp.Links.Next
+	}
+	if limit > 0 && len(all) > limit {
+		all = all[:limit]
+	}
+	return all, nil
 }
 
 func parseRetryAfter(h http.Header) time.Duration {

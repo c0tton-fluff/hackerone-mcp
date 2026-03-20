@@ -202,6 +202,26 @@ func TestSumBounties_NoBounties(t *testing.T) {
 	}
 }
 
+func TestExtractSeverity_ScoreAsString(t *testing.T) {
+	r := Resource{
+		ID: "1",
+		Relationships: map[string]Relationship{
+			"severity": {
+				Data: map[string]any{
+					"attributes": map[string]any{
+						"rating": "critical",
+						"score":  "8.7",
+					},
+				},
+			},
+		},
+	}
+	reports := flattenReports([]Resource{r})
+	if reports[0].CvssScore != 8.7 {
+		t.Errorf("CvssScore from string: got %f, want 8.7", reports[0].CvssScore)
+	}
+}
+
 func TestFlattenReports_SeverityFallback(t *testing.T) {
 	r := Resource{
 		ID: "1",

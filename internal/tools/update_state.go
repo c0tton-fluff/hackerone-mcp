@@ -36,6 +36,9 @@ func updateStateHandler(
 		req *mcp.CallToolRequest,
 		input UpdateStateInput,
 	) (*mcp.CallToolResult, UpdateStateOutput, error) {
+		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
+			return nil, UpdateStateOutput{}, err
+		}
 		err := client.UpdateState(
 			ctx, input.ReportID, input.State, input.Message,
 		)

@@ -67,6 +67,9 @@ func bulkUpdateStateHandler(
 		var succeeded, failed int
 
 		for _, id := range input.ReportIDs {
+			if err := ctx.Err(); err != nil {
+				return nil, BulkUpdateStateOutput{}, err
+			}
 			r := BulkUpdateResult{ReportID: id}
 			err := client.UpdateState(ctx, id, input.State, input.Message)
 			if err != nil {

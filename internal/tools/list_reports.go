@@ -13,6 +13,12 @@ var validSeverities = map[string]bool{
 	"none": true, "low": true, "medium": true, "high": true, "critical": true,
 }
 
+var validSorts = map[string]bool{
+	"created_at": true, "-created_at": true,
+	"severity_rating": true, "-severity_rating": true,
+	"bounty_awarded_at": true, "-bounty_awarded_at": true,
+}
+
 type ListReportsInput struct {
 	Program       string `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
 	State         string `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
@@ -60,6 +66,10 @@ func listReportsHandler(
 		if input.Severity != "" && !validSeverities[input.Severity] {
 			return nil, ListReportsOutput{},
 				fmt.Errorf("invalid severity %q", input.Severity)
+		}
+		if input.Sort != "" && !validSorts[input.Sort] {
+			return nil, ListReportsOutput{},
+				fmt.Errorf("invalid sort %q", input.Sort)
 		}
 		for _, d := range []struct{ name, val string }{
 			{"created_after", input.CreatedAfter},

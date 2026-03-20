@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sync"
 	"time"
 )
 
 var validReportID = regexp.MustCompile(`^\d+$`)
 
 const (
-	baseURL    = "https://api.hackerone.com/v1"
-	maxRetries = 3
-	maxReports = 1000
+	defaultBaseURL = "https://api.hackerone.com/v1"
+	maxRetries     = 3
+	maxReports     = 1000
 )
 
 // ValidStates contains valid report states for the HackerOne API.
@@ -31,6 +32,8 @@ type Client struct {
 	apiID        string
 	apiKey       string
 	program      string
+	baseURL      string
+	mu           sync.Mutex
 	programCache []Program
 }
 
@@ -40,6 +43,7 @@ func NewClient(apiID, apiKey, program string) *Client {
 		apiID:   apiID,
 		apiKey:  apiKey,
 		program: program,
+		baseURL: defaultBaseURL,
 	}
 }
 

@@ -10,6 +10,9 @@ import (
 
 // cachedPrograms fetches and caches the program list (one API call per session).
 func (c *Client) cachedPrograms(ctx context.Context) ([]Program, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.programCache != nil {
 		return c.programCache, nil
 	}
@@ -70,23 +73,17 @@ func (c *Client) GetProgramScope(
 		return nil, err
 	}
 
-	path := fmt.Sprintf(
-		"/programs/%s/structured_scopes?page[size]=100",
-		url.PathEscape(programID),
+	firstURL := fmt.Sprintf(
+		"%s/programs/%s/structured_scopes?page[size]=100",
+		c.baseURL, url.PathEscape(programID),
 	)
-
-	raw, err := c.get(ctx, path)
+	resources, err := c.fetchAllPages(ctx, firstURL, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	var resp ListResponse
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-
-	scopes := make([]map[string]any, 0, len(resp.Data))
-	for _, r := range resp.Data {
+	scopes := make([]map[string]any, 0, len(resources))
+	for _, r := range resources {
 		scope := map[string]any{"id": r.ID}
 		maps.Copy(scope, r.Attributes)
 		scopes = append(scopes, scope)
