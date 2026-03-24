@@ -145,3 +145,23 @@ func (c *Client) GetProgramPolicy(
 	policy, _ := resp.Data.Attributes["policy"].(string)
 	return policy, nil
 }
+
+// GetAnalytics returns program analytics data.
+func (c *Client) GetAnalytics(
+	ctx context.Context, program string,
+) (map[string]any, error) {
+	handle := c.resolveProgram(program)
+	params := url.Values{}
+	params.Set("filter[program][]", handle)
+
+	raw, err := c.get(ctx, "/analytics?"+params.Encode())
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf("parse analytics response: %w", err)
+	}
+	return result, nil
+}

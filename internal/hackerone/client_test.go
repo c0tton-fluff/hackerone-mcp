@@ -587,3 +587,32 @@ func TestManageRetest_InvalidAction(t *testing.T) {
 		t.Error("expected error for invalid action")
 	}
 }
+
+func TestGetAnalytics_RequestShape(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			if r.URL.Query().Get("filter[program][]") == "" {
+				t.Error("missing filter[program][] param")
+			}
+			w.Write([]byte(`{"data":{"attributes":{"reports_count":42}}}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	result, err := c.GetAnalytics(context.Background(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/analytics" {
+		t.Errorf("path: got %q", gotPath)
+	}
+	if result == nil {
+		t.Error("expected non-nil result")
+	}
+}
