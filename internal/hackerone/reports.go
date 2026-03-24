@@ -323,6 +323,26 @@ func (c *Client) RequestDisclosure(
 	return err
 }
 
+// parseActivities converts JSON:API resources into Activity structs.
+func parseActivities(resources []Resource) []Activity {
+	activities := make([]Activity, 0, len(resources))
+	for _, r := range resources {
+		act := Activity{
+			ID:   r.ID,
+			Type: r.Type,
+		}
+		act.Message, _ = r.Attributes["message"].(string)
+		act.Internal, _ = r.Attributes["internal"].(bool)
+		act.CreatedAt, _ = r.Attributes["created_at"].(string)
+		if actor := relAttrs(r, "actor"); actor != nil {
+			act.Actor, _ = actor["username"].(string)
+		}
+		extractActivityDetails(&act, r.Attributes)
+		activities = append(activities, act)
+	}
+	return activities
+}
+
 // IncrementalActivities polls for new activities across all reports.
 func (c *Client) IncrementalActivities(
 	ctx context.Context, handle, updatedAfter string, limit int,
@@ -347,25 +367,11 @@ func (c *Client) IncrementalActivities(
 		return nil, err
 	}
 
-	activities := make([]Activity, 0, len(resources))
-	for _, r := range resources {
-		act := Activity{
-			ID:   r.ID,
-			Type: r.Type,
-		}
-		act.Message, _ = r.Attributes["message"].(string)
-		act.Internal, _ = r.Attributes["internal"].(bool)
-		act.CreatedAt, _ = r.Attributes["created_at"].(string)
-		if actor := relAttrs(r, "actor"); actor != nil {
-			act.Actor, _ = actor["username"].(string)
-		}
-		extractActivityDetails(&act, r.Attributes)
-		activities = append(activities, act)
-	}
-	return activities, nil
+	return parseActivities(resources), nil
 }
 
-// GetActivities returns the full activity timeline for a report.
+// GetActivities returns the full activity timeline for a report
+// using the documented incremental activities endpoint.
 func (c *Client) GetActivities(
 	ctx context.Context, reportID string,
 ) ([]Activity, error) {
@@ -373,29 +379,15 @@ func (c *Client) GetActivities(
 		return nil, err
 	}
 
-	firstURL := fmt.Sprintf(
-		"%s/reports/%s/activities?page[size]=100",
-		c.baseURL, reportID,
-	)
+	params := url.Values{}
+	params.Set("report_id", reportID)
+	params.Set("page[size]", "100")
+
+	firstURL := c.baseURL + "/incremental/activities?" + params.Encode()
 	resources, err := c.fetchAllPages(ctx, firstURL, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	activities := make([]Activity, 0, len(resources))
-	for _, r := range resources {
-		act := Activity{
-			ID:   r.ID,
-			Type: r.Type,
-		}
-		act.Message, _ = r.Attributes["message"].(string)
-		act.Internal, _ = r.Attributes["internal"].(bool)
-		act.CreatedAt, _ = r.Attributes["created_at"].(string)
-		if actor := relAttrs(r, "actor"); actor != nil {
-			act.Actor, _ = actor["username"].(string)
-		}
-		extractActivityDetails(&act, r.Attributes)
-		activities = append(activities, act)
-	}
-	return activities, nil
+	return parseActivities(resources), nil
 }

@@ -349,3 +349,33 @@ func TestUpdateSeverity_CorrectEndpoint(t *testing.T) {
 		t.Errorf("path: got %q, want /reports/12345/severities", gotPath)
 	}
 }
+
+func TestGetActivities_UsesIncrementalEndpoint(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			if r.URL.Query().Get("report_id") != "12345" {
+				t.Errorf("report_id param: got %q", r.URL.Query().Get("report_id"))
+			}
+			body := `{"data":[{"id":"1","type":"activity-comment","attributes":{"message":"hello","created_at":"2024-01-01T00:00:00Z"}}],"links":{}}`
+			w.Write([]byte(body))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	activities, err := c.GetActivities(context.Background(), "12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/incremental/activities" {
+		t.Errorf("path: got %q, want /incremental/activities", gotPath)
+	}
+	if len(activities) != 1 || activities[0].Message != "hello" {
+		t.Errorf("activities: got %+v", activities)
+	}
+}
