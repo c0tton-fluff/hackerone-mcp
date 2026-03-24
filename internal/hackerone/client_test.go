@@ -491,3 +491,99 @@ func TestCloseComments_RequestShape(t *testing.T) {
 		t.Errorf("path: got %q", gotPath)
 	}
 }
+
+func TestManageRetest_Request(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+	err := c.ManageRetest(
+		context.Background(), "12345", "request", "Please verify fix",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method: got %q, want POST", gotMethod)
+	}
+	if gotPath != "/reports/12345/retests" {
+		t.Errorf("path: got %q", gotPath)
+	}
+	var parsed map[string]any
+	json.Unmarshal(gotBody, &parsed)
+	data := parsed["data"].(map[string]any)
+	if data["type"] != "retest-request" {
+		t.Errorf("type: got %q", data["type"])
+	}
+}
+
+func TestManageRetest_Approve(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+	err := c.ManageRetest(context.Background(), "12345", "approve", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method: got %q", gotMethod)
+	}
+	if gotPath != "/reports/12345/retests/approve" {
+		t.Errorf("path: got %q", gotPath)
+	}
+}
+
+func TestManageRetest_Cancel(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+	err := c.ManageRetest(context.Background(), "12345", "cancel", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "DELETE" {
+		t.Errorf("method: got %q, want DELETE", gotMethod)
+	}
+	if gotPath != "/reports/12345/retests/cancel" {
+		t.Errorf("path: got %q", gotPath)
+	}
+}
+
+func TestManageRetest_InvalidAction(t *testing.T) {
+	c := NewClient("test", "key", "prog")
+	err := c.ManageRetest(context.Background(), "12345", "nope", "")
+	if err == nil {
+		t.Error("expected error for invalid action")
+	}
+}

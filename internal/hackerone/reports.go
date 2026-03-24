@@ -447,3 +447,48 @@ func (c *Client) CloseComments(
 	)
 	return err
 }
+
+var validRetestActions = map[string]bool{
+	"request": true, "approve": true, "reject": true, "cancel": true,
+}
+
+// ManageRetest handles retest lifecycle (request/approve/reject/cancel).
+func (c *Client) ManageRetest(
+	ctx context.Context, reportID, action, summary string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	if !validRetestActions[action] {
+		return fmt.Errorf(
+			"invalid retest action %q: must be request, approve, reject, or cancel",
+			action,
+		)
+	}
+
+	base := fmt.Sprintf("/reports/%s/retests", reportID)
+
+	switch action {
+	case "request":
+		body := map[string]any{
+			"data": map[string]any{
+				"type": "retest-request",
+				"attributes": map[string]any{
+					"summary": summary,
+				},
+			},
+		}
+		_, err := c.post(ctx, base, body)
+		return err
+	case "approve":
+		_, err := c.post(ctx, base+"/approve", map[string]any{})
+		return err
+	case "reject":
+		_, err := c.post(ctx, base+"/reject", map[string]any{})
+		return err
+	case "cancel":
+		_, err := c.delete(ctx, base+"/cancel")
+		return err
+	}
+	return nil
+}
