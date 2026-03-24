@@ -141,6 +141,86 @@ func TestGetActivities_Pagination(t *testing.T) {
 	}
 }
 
+func TestValidTransitionStates(t *testing.T) {
+	if ValidTransitionStates["new"] {
+		t.Error("'new' should not be a valid transition state")
+	}
+	for _, s := range []string{
+		"triaged", "resolved", "not-applicable",
+		"informative", "duplicate", "spam",
+	} {
+		if !ValidTransitionStates[s] {
+			t.Errorf("state %q should be a valid transition", s)
+		}
+	}
+}
+
+func TestUpdateSeverity_Validation(t *testing.T) {
+	c := NewClient("test", "key", "prog")
+	err := c.UpdateSeverity(context.Background(), "abc", "high", "")
+	if err == nil {
+		t.Error("expected error for invalid report ID")
+	}
+}
+
+func TestAssignReport_Validation(t *testing.T) {
+	c := NewClient("test", "key", "prog")
+	err := c.AssignReport(context.Background(), "abc", "1", "user")
+	if err == nil {
+		t.Error("expected error for invalid report ID")
+	}
+}
+
+func TestGetActivities_BountyAmount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			body := `{"data":[{"id":"1","type":"activity-bounty-awarded","attributes":{"message":"Thanks!","bounty_amount":"500.00","created_at":"2024-01-01T00:00:00Z"}}],"links":{}}`
+			w.Write([]byte(body))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	activities, err := c.GetActivities(context.Background(), "12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(activities) != 1 {
+		t.Fatalf("got %d activities, want 1", len(activities))
+	}
+	if activities[0].BountyAmount != 500.0 {
+		t.Errorf("bounty_amount: got %f, want 500.0", activities[0].BountyAmount)
+	}
+}
+
+func TestGetActivities_ChangeValues(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			body := `{"data":[{"id":"1","type":"activity-severity-updated","attributes":{"message":"bumped","old_severity":"medium","new_severity":"high","created_at":"2024-01-01T00:00:00Z"}}],"links":{}}`
+			w.Write([]byte(body))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	activities, err := c.GetActivities(context.Background(), "12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activities[0].OldValue != "medium" {
+		t.Errorf("old_value: got %q, want medium", activities[0].OldValue)
+	}
+	if activities[0].NewValue != "high" {
+		t.Errorf("new_value: got %q, want high", activities[0].NewValue)
+	}
+}
+
 func TestCachedPrograms_ThreadSafe(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(

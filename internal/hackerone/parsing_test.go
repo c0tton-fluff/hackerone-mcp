@@ -222,6 +222,104 @@ func TestExtractSeverity_ScoreAsString(t *testing.T) {
 	}
 }
 
+func TestFlattenReports_GroupAssignee(t *testing.T) {
+	r := Resource{
+		ID:         "1",
+		Attributes: map[string]any{},
+		Relationships: map[string]Relationship{
+			"assignee": {
+				Data: map[string]any{
+					"attributes": map[string]any{
+						"name": "Security Team",
+					},
+				},
+			},
+		},
+	}
+	reports := flattenReports([]Resource{r})
+	if reports[0].Assignee != "Security Team" {
+		t.Errorf(
+			"group assignee: got %q, want Security Team",
+			reports[0].Assignee,
+		)
+	}
+}
+
+func TestFlattenReports_UserAssigneeTakesPrecedence(t *testing.T) {
+	r := Resource{
+		ID:         "1",
+		Attributes: map[string]any{},
+		Relationships: map[string]Relationship{
+			"assignee": {
+				Data: map[string]any{
+					"attributes": map[string]any{
+						"username": "alice",
+						"name":     "Alice Smith",
+					},
+				},
+			},
+		},
+	}
+	reports := flattenReports([]Resource{r})
+	if reports[0].Assignee != "alice" {
+		t.Errorf("user assignee: got %q, want alice", reports[0].Assignee)
+	}
+}
+
+func TestFlattenReports_NewFields(t *testing.T) {
+	r := Resource{
+		ID: "1",
+		Attributes: map[string]any{
+			"updated_at":                  "2024-06-01T00:00:00Z",
+			"last_activity_at":            "2024-06-02T00:00:00Z",
+			"last_reporter_activity_at":   "2024-05-30T00:00:00Z",
+			"last_program_activity_at":    "2024-06-01T12:00:00Z",
+			"cve_ids":                     "CVE-2024-1234",
+		},
+	}
+	reports := flattenReports([]Resource{r})
+	rpt := reports[0]
+	if rpt.UpdatedAt != "2024-06-01T00:00:00Z" {
+		t.Errorf("updated_at: got %q", rpt.UpdatedAt)
+	}
+	if rpt.LastActivityAt != "2024-06-02T00:00:00Z" {
+		t.Errorf("last_activity_at: got %q", rpt.LastActivityAt)
+	}
+	if rpt.LastReporterActivityAt != "2024-05-30T00:00:00Z" {
+		t.Errorf("last_reporter_activity_at: got %q", rpt.LastReporterActivityAt)
+	}
+	if rpt.LastProgramActivityAt != "2024-06-01T12:00:00Z" {
+		t.Errorf("last_program_activity_at: got %q", rpt.LastProgramActivityAt)
+	}
+	if rpt.CveIDs != "CVE-2024-1234" {
+		t.Errorf("cve_ids: got %q", rpt.CveIDs)
+	}
+}
+
+func TestExtractActivityDetails_BountyFloat(t *testing.T) {
+	act := Activity{}
+	extractActivityDetails(&act, map[string]any{
+		"bounty_amount": float64(750),
+	})
+	if act.BountyAmount != 750 {
+		t.Errorf("bounty float: got %f, want 750", act.BountyAmount)
+	}
+}
+
+func TestExtractActivityDetails_ScopeChange(t *testing.T) {
+	act := Activity{}
+	extractActivityDetails(&act, map[string]any{
+		"old_scope": "*.example.com",
+		"new_scope": "api.example.com",
+	})
+	if act.OldValue != "*.example.com" {
+		t.Errorf("old_scope: got %q", act.OldValue)
+	}
+	if act.NewValue != "api.example.com" {
+		t.Errorf("new_scope: got %q", act.NewValue)
+	}
+}
+
 func TestFlattenReports_SeverityFallback(t *testing.T) {
 	r := Resource{
 		ID: "1",

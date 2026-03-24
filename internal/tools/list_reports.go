@@ -17,19 +17,26 @@ var validSorts = map[string]bool{
 	"created_at": true, "-created_at": true,
 	"severity_rating": true, "-severity_rating": true,
 	"bounty_awarded_at": true, "-bounty_awarded_at": true,
+	"triaged_at": true, "-triaged_at": true,
 }
 
 type ListReportsInput struct {
-	Program       string `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
-	State         string `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
-	Severity      string `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
-	Reporter      string `json:"reporter,omitempty" jsonschema:"Filter by reporter username"`
-	Assignee      string `json:"assignee,omitempty" jsonschema:"Filter by assignee username"`
-	Keyword       string `json:"keyword,omitempty" jsonschema:"Search reports by keyword in title and vulnerability info"`
-	CreatedAfter  string `json:"created_after,omitempty" jsonschema:"Reports created after this date (ISO 8601, e.g. 2024-01-01)"`
-	CreatedBefore string `json:"created_before,omitempty" jsonschema:"Reports created before this date (ISO 8601)"`
-	Sort          string `json:"sort,omitempty" jsonschema:"Sort field (created_at, -created_at, severity_rating, -severity_rating, bounty_awarded_at, -bounty_awarded_at). Prefix with - for descending."`
-	Limit         int    `json:"limit,omitempty" jsonschema:"Max reports to return (default 25, max 1000). Auto-paginates."`
+	Program       string   `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
+	State         string   `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
+	Severity      string   `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
+	Reporter      string   `json:"reporter,omitempty" jsonschema:"Filter by reporter username"`
+	Assignee      string   `json:"assignee,omitempty" jsonschema:"Filter by assignee username"`
+	Keyword       string   `json:"keyword,omitempty" jsonschema:"Search reports by keyword in title and vulnerability info"`
+	CreatedAfter  string   `json:"created_after,omitempty" jsonschema:"Reports created after this date (YYYY-MM-DD)"`
+	CreatedBefore string   `json:"created_before,omitempty" jsonschema:"Reports created before this date (YYYY-MM-DD)"`
+	TriagedAfter  string   `json:"triaged_after,omitempty" jsonschema:"Reports triaged after this date (YYYY-MM-DD)"`
+	TriagedBefore string   `json:"triaged_before,omitempty" jsonschema:"Reports triaged before this date (YYYY-MM-DD)"`
+	ClosedAfter   string   `json:"closed_after,omitempty" jsonschema:"Reports closed after this date (YYYY-MM-DD)"`
+	ClosedBefore  string   `json:"closed_before,omitempty" jsonschema:"Reports closed before this date (YYYY-MM-DD)"`
+	WeaknessID    string   `json:"weakness_id,omitempty" jsonschema:"Filter by weakness/CWE ID"`
+	ReportIDs     []string `json:"report_ids,omitempty" jsonschema:"Fetch specific report IDs (batch lookup)"`
+	Sort          string   `json:"sort,omitempty" jsonschema:"Sort field (created_at, -created_at, severity_rating, -severity_rating, bounty_awarded_at, -bounty_awarded_at, triaged_at, -triaged_at). Prefix with - for descending."`
+	Limit         int      `json:"limit,omitempty" jsonschema:"Max reports to return (default 25, max 1000). Auto-paginates."`
 }
 
 type ListReportsOutput struct {
@@ -74,6 +81,10 @@ func listReportsHandler(
 		for _, d := range []struct{ name, val string }{
 			{"created_after", input.CreatedAfter},
 			{"created_before", input.CreatedBefore},
+			{"triaged_after", input.TriagedAfter},
+			{"triaged_before", input.TriagedBefore},
+			{"closed_after", input.ClosedAfter},
+			{"closed_before", input.ClosedBefore},
 		} {
 			if d.val == "" {
 				continue
@@ -96,6 +107,12 @@ func listReportsHandler(
 			Keyword:       input.Keyword,
 			CreatedAfter:  input.CreatedAfter,
 			CreatedBefore: input.CreatedBefore,
+			TriagedAfter:  input.TriagedAfter,
+			TriagedBefore: input.TriagedBefore,
+			ClosedAfter:   input.ClosedAfter,
+			ClosedBefore:  input.ClosedBefore,
+			WeaknessID:    input.WeaknessID,
+			ReportIDs:     input.ReportIDs,
 			Sort:          input.Sort,
 			Limit:         input.Limit,
 		})
