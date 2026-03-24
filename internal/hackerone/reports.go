@@ -391,3 +391,59 @@ func (c *Client) GetActivities(
 
 	return parseActivities(resources), nil
 }
+
+// AddSummary posts a summary on a report.
+func (c *Client) AddSummary(
+	ctx context.Context, reportID, content string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "summary",
+			"attributes": map[string]any{
+				"content": content,
+			},
+		},
+	}
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/summaries", reportID), body,
+	)
+	return err
+}
+
+// UpdateCVEs sets CVE IDs on a report.
+func (c *Client) UpdateCVEs(
+	ctx context.Context, reportID string, cveIDs []string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "cve",
+			"attributes": map[string]any{
+				"cve_ids": cveIDs,
+			},
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/cves", reportID), body,
+	)
+	return err
+}
+
+// CloseComments locks comments on a report.
+func (c *Client) CloseComments(
+	ctx context.Context, reportID string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/close_comments", reportID),
+		map[string]any{},
+	)
+	return err
+}

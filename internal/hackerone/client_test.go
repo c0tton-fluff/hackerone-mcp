@@ -379,3 +379,115 @@ func TestGetActivities_UsesIncrementalEndpoint(t *testing.T) {
 		t.Errorf("activities: got %+v", activities)
 	}
 }
+
+func TestAddSummary_RequestShape(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	err := c.AddSummary(context.Background(), "12345", "Root cause was X")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method: got %q, want POST", gotMethod)
+	}
+	if gotPath != "/reports/12345/summaries" {
+		t.Errorf("path: got %q", gotPath)
+	}
+	var parsed map[string]any
+	json.Unmarshal(gotBody, &parsed)
+	data := parsed["data"].(map[string]any)
+	if data["type"] != "summary" {
+		t.Errorf("type: got %q", data["type"])
+	}
+	attrs := data["attributes"].(map[string]any)
+	if attrs["content"] != "Root cause was X" {
+		t.Errorf("content: got %q", attrs["content"])
+	}
+}
+
+func TestUpdateCVEs_RequestShape(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	err := c.UpdateCVEs(
+		context.Background(), "12345",
+		[]string{"CVE-2026-0001", "CVE-2026-0002"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method: got %q, want PUT", gotMethod)
+	}
+	if gotPath != "/reports/12345/cves" {
+		t.Errorf("path: got %q", gotPath)
+	}
+	var parsed map[string]any
+	json.Unmarshal(gotBody, &parsed)
+	data := parsed["data"].(map[string]any)
+	if data["type"] != "cve" {
+		t.Errorf("type: got %q", data["type"])
+	}
+	attrs := data["attributes"].(map[string]any)
+	ids := attrs["cve_ids"].([]any)
+	if len(ids) != 2 || ids[0] != "CVE-2026-0001" {
+		t.Errorf("cve_ids: got %v", ids)
+	}
+}
+
+func TestCloseComments_RequestShape(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	err := c.CloseComments(context.Background(), "12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method: got %q, want PUT", gotMethod)
+	}
+	if gotPath != "/reports/12345/close_comments" {
+		t.Errorf("path: got %q", gotPath)
+	}
+}
