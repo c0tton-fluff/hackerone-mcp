@@ -91,6 +91,37 @@ func (c *Client) GetProgramScope(
 	return scopes, nil
 }
 
+// ListMembers returns team members for a program.
+func (c *Client) ListMembers(
+	ctx context.Context, program string,
+) ([]Member, error) {
+	handle := c.resolveProgram(program)
+	programID, err := c.getProgramID(ctx, handle)
+	if err != nil {
+		return nil, err
+	}
+
+	firstURL := fmt.Sprintf(
+		"%s/programs/%s/members?page[size]=100",
+		c.baseURL, url.PathEscape(programID),
+	)
+	resources, err := c.fetchAllPages(ctx, firstURL, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	members := make([]Member, 0, len(resources))
+	for _, r := range resources {
+		m := Member{ID: r.ID}
+		if userAttrs := relAttrs(r, "user"); userAttrs != nil {
+			m.Username, _ = userAttrs["username"].(string)
+			m.Name, _ = userAttrs["name"].(string)
+		}
+		members = append(members, m)
+	}
+	return members, nil
+}
+
 // GetProgramPolicy returns the policy body for a program.
 func (c *Client) GetProgramPolicy(
 	ctx context.Context, program string,

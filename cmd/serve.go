@@ -54,6 +54,9 @@ var serveCmd = &cobra.Command{
 		tools.RegisterBulkUpdateStateTool(server, client)
 		tools.RegisterMarkDuplicateTool(server, client)
 		tools.RegisterAwardBountyTool(server, client)
+		tools.RegisterUpdateSeverityTool(server, client)
+		tools.RegisterAssignReportTool(server, client)
+		tools.RegisterListMembersTool(server, client)
 		tools.RegisterGetScopeTool(server, client)
 
 		// Parent PID watchdog -- exit if parent dies.
