@@ -293,3 +293,26 @@ func TestMarkDuplicate_CorrectEndpoint(t *testing.T) {
 		t.Errorf("path: got %q, want /reports/111/state_changes", gotPath)
 	}
 }
+
+func TestUpdateSeverity_CorrectEndpoint(t *testing.T) {
+	var gotPath, gotMethod string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+	_ = c.UpdateSeverity(context.Background(), "12345", "high", "")
+	if gotMethod != "POST" {
+		t.Errorf("method: got %q, want POST", gotMethod)
+	}
+	if gotPath != "/reports/12345/severities" {
+		t.Errorf("path: got %q, want /reports/12345/severities", gotPath)
+	}
+}

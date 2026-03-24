@@ -212,8 +212,8 @@ func (c *Client) UpdateSeverity(
 			"attributes": attrs,
 		},
 	}
-	_, err := c.put(
-		ctx, fmt.Sprintf("/reports/%s/severity", reportID), body,
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/severities", reportID), body,
 	)
 	return err
 }
