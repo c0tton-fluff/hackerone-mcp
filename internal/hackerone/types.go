@@ -44,6 +44,7 @@ type ReportFilter struct {
 	WeaknessID    string
 	ReportIDs     []string
 	Sort          string
+	SortDirection string
 	Limit         int
 }
 
@@ -109,4 +110,14 @@ type Activity struct {
 	BountyAmount float64 `json:"bounty_amount,omitzero"`
 	OldValue     string  `json:"old_value,omitempty"`
 	NewValue     string  `json:"new_value,omitempty"`
+}
+
+// CreateReportParams holds inputs for creating a new report.
+type CreateReportParams struct {
+	Program    string
+	Title      string
+	VulnInfo   string
+	Severity   string
+	WeaknessID string
+	ScopeID    string
 }

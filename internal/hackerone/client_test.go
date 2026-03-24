@@ -616,3 +616,51 @@ func TestGetAnalytics_RequestShape(t *testing.T) {
 		t.Error("expected non-nil result")
 	}
 }
+
+func TestCreateReport_RequestShape(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(201)
+			w.Write([]byte(`{"data":{"id":"99999","type":"report","attributes":{"title":"Test Bug"}}}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+	c.programCache = []Program{{ID: "100", Handle: "prog"}}
+
+	id, err := c.CreateReport(context.Background(), CreateReportParams{
+		Title:    "Test Bug",
+		VulnInfo: "Steps to reproduce...",
+		Severity: "high",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method: got %q, want POST", gotMethod)
+	}
+	if gotPath != "/reports" {
+		t.Errorf("path: got %q", gotPath)
+	}
+	if id != "99999" {
+		t.Errorf("returned ID: got %q, want 99999", id)
+	}
+	var parsed map[string]any
+	json.Unmarshal(gotBody, &parsed)
+	data := parsed["data"].(map[string]any)
+	if data["type"] != "report" {
+		t.Errorf("type: got %q", data["type"])
+	}
+	attrs := data["attributes"].(map[string]any)
+	if attrs["title"] != "Test Bug" {
+		t.Errorf("title: got %q", attrs["title"])
+	}
+}

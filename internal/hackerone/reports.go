@@ -492,3 +492,59 @@ func (c *Client) ManageRetest(
 	}
 	return nil
 }
+
+// CreateReport creates a new report and returns its ID.
+func (c *Client) CreateReport(
+	ctx context.Context, p CreateReportParams,
+) (string, error) {
+	handle := c.resolveProgram(p.Program)
+	programID, err := c.getProgramID(ctx, handle)
+	if err != nil {
+		return "", err
+	}
+
+	attrs := map[string]any{
+		"title":                     p.Title,
+		"vulnerability_information": p.VulnInfo,
+		"severity_rating":           p.Severity,
+	}
+	if p.WeaknessID != "" {
+		attrs["weakness_id"] = p.WeaknessID
+	}
+
+	rels := map[string]any{
+		"program": map[string]any{
+			"data": map[string]any{
+				"type": "program",
+				"id":   programID,
+			},
+		},
+	}
+	if p.ScopeID != "" {
+		rels["structured_scope"] = map[string]any{
+			"data": map[string]any{
+				"type": "structured-scope",
+				"id":   p.ScopeID,
+			},
+		}
+	}
+
+	body := map[string]any{
+		"data": map[string]any{
+			"type":          "report",
+			"attributes":    attrs,
+			"relationships": rels,
+		},
+	}
+
+	raw, err := c.post(ctx, "/reports", body)
+	if err != nil {
+		return "", err
+	}
+
+	var resp SingleResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return "", fmt.Errorf("parse create report response: %w", err)
+	}
+	return resp.Data.ID, nil
+}
