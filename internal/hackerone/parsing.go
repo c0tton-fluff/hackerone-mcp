@@ -60,6 +60,33 @@ func parseCvssVector(vector string) *CvssMetrics {
 	}
 }
 
+// extractActivityDetails pulls bounty_amount and old/new change values
+// from activity attributes based on activity type.
+func extractActivityDetails(act *Activity, attrs map[string]any) {
+	switch v := attrs["bounty_amount"].(type) {
+	case float64:
+		act.BountyAmount = v
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			act.BountyAmount = f
+		}
+	}
+	act.OldValue, _ = attrs["old_value"].(string)
+	act.NewValue, _ = attrs["new_value"].(string)
+	if act.OldValue == "" {
+		act.OldValue, _ = attrs["old_scope"].(string)
+	}
+	if act.NewValue == "" {
+		act.NewValue, _ = attrs["new_scope"].(string)
+	}
+	if act.OldValue == "" {
+		act.OldValue, _ = attrs["old_severity"].(string)
+	}
+	if act.NewValue == "" {
+		act.NewValue, _ = attrs["new_severity"].(string)
+	}
+}
+
 // relAttrs extracts nested relationship attributes from a Resource.
 func relAttrs(r Resource, name string) map[string]any {
 	rel, ok := r.Relationships[name]
@@ -100,9 +127,14 @@ func flattenOneReport(r Resource) Report {
 	report.Title, _ = a["title"].(string)
 	report.State, _ = a["state"].(string)
 	report.CreatedAt, _ = a["created_at"].(string)
+	report.UpdatedAt, _ = a["updated_at"].(string)
 	report.TriagedAt, _ = a["triaged_at"].(string)
 	report.ClosedAt, _ = a["closed_at"].(string)
 	report.BountyAwardedAt, _ = a["bounty_awarded_at"].(string)
+	report.LastActivityAt, _ = a["last_activity_at"].(string)
+	report.LastReporterActivityAt, _ = a["last_reporter_activity_at"].(string)
+	report.LastProgramActivityAt, _ = a["last_program_activity_at"].(string)
+	report.CveIDs, _ = a["cve_ids"].(string)
 	report.VulnInfo, _ = a["vulnerability_information"].(string)
 	report.ImpactDescription, _ = a["impact"].(string)
 
@@ -115,6 +147,9 @@ func flattenOneReport(r Resource) Report {
 
 	report.ReporterUsername = relString(r, "reporter", "username")
 	report.Assignee = relString(r, "assignee", "username")
+	if report.Assignee == "" {
+		report.Assignee = relString(r, "assignee", "name")
+	}
 	report.ProgramHandle = relString(r, "program", "handle")
 	report.AssetIdentifier = relString(r, "structured_scope", "asset_identifier")
 	report.BountyAmount = sumBounties(r)

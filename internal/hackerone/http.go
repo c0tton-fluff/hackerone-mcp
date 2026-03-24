@@ -28,6 +28,18 @@ func (c *Client) post(ctx context.Context, path string, body any) ([]byte, error
 	return c.do(ctx, http.MethodPost, c.baseURL+path, payload)
 }
 
+func (c *Client) put(ctx context.Context, path string, body any) ([]byte, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal body: %w", err)
+	}
+	return c.do(ctx, http.MethodPut, c.baseURL+path, payload)
+}
+
+func (c *Client) delete(ctx context.Context, path string) ([]byte, error) {
+	return c.do(ctx, http.MethodDelete, c.baseURL+path, nil)
+}
+
 // do executes an HTTP request with automatic retry on 429 rate limits.
 func (c *Client) do(
 	ctx context.Context, method, reqURL string, body []byte,

@@ -30,13 +30,21 @@ func (c *Client) ListReports(
 		{"filter[reporter][]", f.Reporter},
 		{"filter[created_at__gt]", f.CreatedAfter},
 		{"filter[created_at__lt]", f.CreatedBefore},
+		{"filter[triaged_at__gt]", f.TriagedAfter},
+		{"filter[triaged_at__lt]", f.TriagedBefore},
+		{"filter[closed_at__gt]", f.ClosedAfter},
+		{"filter[closed_at__lt]", f.ClosedBefore},
 		{"filter[assignee][]", f.Assignee},
 		{"filter[keyword]", f.Keyword},
+		{"filter[weakness_id][]", f.WeaknessID},
 		{"sort", f.Sort},
 	} {
 		if kv.val != "" {
 			params.Set(kv.key, kv.val)
 		}
+	}
+	for _, id := range f.ReportIDs {
+		params.Add("filter[id][]", id)
 	}
 
 	firstURL := c.baseURL + "/reports?" + params.Encode()
@@ -106,9 +114,9 @@ func (c *Client) UpdateState(
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
-	if !ValidStates[state] {
+	if !ValidTransitionStates[state] {
 		return fmt.Errorf(
-			"invalid state %q: must be one of new, triaged, "+
+			"invalid state %q: must be one of triaged, "+
 				"resolved, not-applicable, informative, "+
 				"duplicate, spam",
 			state,
@@ -186,6 +194,48 @@ func (c *Client) MarkDuplicate(
 	return err
 }
 
+// UpdateSeverity sets the severity rating and optional CVSS vector on a report.
+func (c *Client) UpdateSeverity(
+	ctx context.Context, reportID, rating, cvssVector string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	attrs := map[string]any{"rating": rating}
+	if cvssVector != "" {
+		attrs["cvss_vector_string"] = cvssVector
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type":       "severity",
+			"attributes": attrs,
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/severity", reportID), body,
+	)
+	return err
+}
+
+// AssignReport assigns a report to a user or group by ID.
+func (c *Client) AssignReport(
+	ctx context.Context, reportID, assigneeID, assigneeType string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": assigneeType,
+			"id":   assigneeID,
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/assignee", reportID), body,
+	)
+	return err
+}
+
 // GetActivities returns the full activity timeline for a report.
 func (c *Client) GetActivities(
 	ctx context.Context, reportID string,
@@ -215,6 +265,7 @@ func (c *Client) GetActivities(
 		if actor := relAttrs(r, "actor"); actor != nil {
 			act.Actor, _ = actor["username"].(string)
 		}
+		extractActivityDetails(&act, r.Attributes)
 		activities = append(activities, act)
 	}
 	return activities, nil

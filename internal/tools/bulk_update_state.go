@@ -62,7 +62,7 @@ func bulkUpdateStateHandler(
 					len(input.ReportIDs), maxBulkReports,
 				)
 		}
-		if !hackerone.ValidStates[input.State] {
+		if !hackerone.ValidTransitionStates[input.State] {
 			return nil, BulkUpdateStateOutput{},
 				fmt.Errorf("invalid state %q", input.State)
 		}

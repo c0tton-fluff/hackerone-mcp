@@ -10,7 +10,7 @@ import (
 
 type UpdateStateInput struct {
 	ReportID string `json:"report_id" jsonschema:"HackerOne report ID"`
-	State    string `json:"state" jsonschema:"New state (triaged/resolved/not-applicable/informative/duplicate)"`
+	State    string `json:"state" jsonschema:"New state (triaged/resolved/not-applicable/informative/duplicate/spam)"`
 	Message  string `json:"message,omitempty" jsonschema:"Message to include with state change"`
 }
 
