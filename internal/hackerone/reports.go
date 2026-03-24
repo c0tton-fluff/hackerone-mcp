@@ -38,6 +38,7 @@ func (c *Client) ListReports(
 		{"filter[keyword]", f.Keyword},
 		{"filter[weakness_id][]", f.WeaknessID},
 		{"sort", f.Sort},
+		{"order", f.SortDirection},
 	} {
 		if kv.val != "" {
 			params.Set(kv.key, kv.val)
@@ -132,7 +133,7 @@ func (c *Client) UpdateState(
 		},
 	}
 	_, err := c.post(
-		ctx, fmt.Sprintf("/reports/%s/state_change", reportID), body,
+		ctx, fmt.Sprintf("/reports/%s/state_changes", reportID), body,
 	)
 	return err
 }
@@ -189,7 +190,7 @@ func (c *Client) MarkDuplicate(
 		},
 	}
 	_, err := c.post(
-		ctx, fmt.Sprintf("/reports/%s/state_change", reportID), body,
+		ctx, fmt.Sprintf("/reports/%s/state_changes", reportID), body,
 	)
 	return err
 }
@@ -234,6 +235,132 @@ func (c *Client) AssignReport(
 		ctx, fmt.Sprintf("/reports/%s/assignee", reportID), body,
 	)
 	return err
+}
+
+// UpdateTitle changes the title of a report.
+func (c *Client) UpdateTitle(
+	ctx context.Context, reportID, title string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "title",
+			"attributes": map[string]any{
+				"title": title,
+			},
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/title", reportID), body,
+	)
+	return err
+}
+
+// UpdateWeakness sets the CWE/weakness on a report.
+func (c *Client) UpdateWeakness(
+	ctx context.Context, reportID, weaknessID string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "weakness",
+			"attributes": map[string]any{
+				"weakness_id": weaknessID,
+			},
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/weakness", reportID), body,
+	)
+	return err
+}
+
+// UpdateTags sets the tags on a report (replaces all existing tags).
+func (c *Client) UpdateTags(
+	ctx context.Context, reportID string, tagNames []string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "report-tag",
+			"attributes": map[string]any{
+				"tag_names": tagNames,
+			},
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/report_tags", reportID), body,
+	)
+	return err
+}
+
+// RequestDisclosure posts a disclosure request on a report.
+func (c *Client) RequestDisclosure(
+	ctx context.Context, reportID, substate string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "disclosure-request",
+			"attributes": map[string]any{
+				"substate": substate,
+			},
+		},
+	}
+	_, err := c.post(
+		ctx, fmt.Sprintf("/reports/%s/disclosure_requests", reportID), body,
+	)
+	return err
+}
+
+// IncrementalActivities polls for new activities across all reports.
+func (c *Client) IncrementalActivities(
+	ctx context.Context, handle, updatedAfter string, limit int,
+) ([]Activity, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+	params := url.Values{}
+	if handle != "" {
+		params.Set("handle", handle)
+	} else {
+		params.Set("handle", c.program)
+	}
+	if updatedAfter != "" {
+		params.Set("updated_at_after", updatedAfter)
+	}
+	params.Set("page[size]", strconv.Itoa(min(limit, 100)))
+
+	firstURL := c.baseURL + "/incremental/activities?" + params.Encode()
+	resources, err := c.fetchAllPages(ctx, firstURL, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	activities := make([]Activity, 0, len(resources))
+	for _, r := range resources {
+		act := Activity{
+			ID:   r.ID,
+			Type: r.Type,
+		}
+		act.Message, _ = r.Attributes["message"].(string)
+		act.Internal, _ = r.Attributes["internal"].(bool)
+		act.CreatedAt, _ = r.Attributes["created_at"].(string)
+		if actor := relAttrs(r, "actor"); actor != nil {
+			act.Actor, _ = actor["username"].(string)
+		}
+		extractActivityDetails(&act, r.Attributes)
+		activities = append(activities, act)
+	}
+	return activities, nil
 }
 
 // GetActivities returns the full activity timeline for a report.
