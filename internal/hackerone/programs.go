@@ -153,10 +153,10 @@ func (c *Client) GetAnalytics(
 	handle := c.resolveProgram(program)
 	params := url.Values{}
 	params.Set("filter[program][]", handle)
-	params.Set("query_key", queryKey)
-	params.Set("start_date", startDate)
-	params.Set("end_date", endDate)
-	params.Set("interval", interval)
+	params.Set("filter[query_key]", queryKey)
+	params.Set("filter[start_date]", startDate)
+	params.Set("filter[end_date]", endDate)
+	params.Set("filter[interval]", interval)
 
 	raw, err := c.get(ctx, "/analytics?"+params.Encode())
 	if err != nil {
