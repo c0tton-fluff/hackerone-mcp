@@ -8,14 +8,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var validAssigneeTypes = map[string]bool{
-	"user": true, "group": true,
-}
-
 type AssignReportInput struct {
-	ReportID     string `json:"report_id" jsonschema:"HackerOne report ID"`
-	AssigneeID   string `json:"assignee_id" jsonschema:"User or group ID to assign"`
-	AssigneeType string `json:"assignee_type" jsonschema:"Type of assignee: user or group"`
+	ReportID string `json:"report_id" jsonschema:"HackerOne report ID"`
+	Username string `json:"username" jsonschema:"Username to assign the report to. Use h1_list_members to find usernames."`
 }
 
 type AssignReportOutput struct {
@@ -28,8 +23,8 @@ func RegisterAssignReportTool(
 ) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_assign_report",
-		Description: "Assign a HackerOne report to a user or group. " +
-			"Use h1_list_members to find user/group IDs.",
+		Description: "Assign a HackerOne report to a user by username. " +
+			"Use h1_list_members to find usernames.",
 	}, assignReportHandler(client))
 }
 
@@ -44,21 +39,13 @@ func assignReportHandler(
 		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
 			return nil, AssignReportOutput{}, err
 		}
-		if input.AssigneeID == "" {
+		if input.Username == "" {
 			return nil, AssignReportOutput{},
-				fmt.Errorf("assignee_id is required")
-		}
-		if !validAssigneeTypes[input.AssigneeType] {
-			return nil, AssignReportOutput{},
-				fmt.Errorf(
-					"invalid assignee_type %q: must be user or group",
-					input.AssigneeType,
-				)
+				fmt.Errorf("username is required")
 		}
 
 		err := client.AssignReport(
-			ctx, input.ReportID,
-			input.AssigneeID, input.AssigneeType,
+			ctx, input.ReportID, input.Username,
 		)
 		if err != nil {
 			return nil, AssignReportOutput{},
@@ -69,8 +56,8 @@ func assignReportHandler(
 		}
 
 		msg := fmt.Sprintf(
-			"Report %s assigned to %s %s",
-			input.ReportID, input.AssigneeType, input.AssigneeID,
+			"Report %s assigned to %s",
+			input.ReportID, input.Username,
 		)
 		output := AssignReportOutput{Success: true, Message: msg}
 		return textResult(msg), output, nil

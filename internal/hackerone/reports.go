@@ -218,17 +218,19 @@ func (c *Client) UpdateSeverity(
 	return err
 }
 
-// AssignReport assigns a report to a user or group by ID.
+// AssignReport assigns a report to a user by username.
 func (c *Client) AssignReport(
-	ctx context.Context, reportID, assigneeID, assigneeType string,
+	ctx context.Context, reportID, username string,
 ) error {
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
 	body := map[string]any{
 		"data": map[string]any{
-			"type": assigneeType,
-			"id":   assigneeID,
+			"type": "assignee",
+			"attributes": map[string]any{
+				"username": username,
+			},
 		},
 	}
 	_, err := c.put(

@@ -2,6 +2,8 @@ package hackerone
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -165,9 +167,40 @@ func TestUpdateSeverity_Validation(t *testing.T) {
 
 func TestAssignReport_Validation(t *testing.T) {
 	c := NewClient("test", "key", "prog")
-	err := c.AssignReport(context.Background(), "abc", "1", "user")
+	err := c.AssignReport(context.Background(), "abc", "alice")
 	if err == nil {
 		t.Error("expected error for invalid report ID")
+	}
+}
+
+func TestAssignReport_CorrectBody(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(200)
+			w.Write([]byte(`{}`))
+		},
+	))
+	defer srv.Close()
+
+	c := NewClient("test", "key", "prog")
+	c.http = srv.Client()
+	c.baseURL = srv.URL
+
+	_ = c.AssignReport(context.Background(), "12345", "alice")
+
+	var parsed map[string]any
+	if err := json.Unmarshal(gotBody, &parsed); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	data := parsed["data"].(map[string]any)
+	if data["type"] != "assignee" {
+		t.Errorf("type: got %q, want assignee", data["type"])
+	}
+	attrs := data["attributes"].(map[string]any)
+	if attrs["username"] != "alice" {
+		t.Errorf("username: got %q, want alice", attrs["username"])
 	}
 }
 

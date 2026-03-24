@@ -24,7 +24,7 @@ func RegisterListMembersTool(
 		Name: "h1_list_members",
 		Description: fmt.Sprintf(
 			"List team members for a HackerOne program. "+
-				"Defaults to %s. Returns user IDs needed "+
+				"Defaults to %s. Returns usernames needed "+
 				"for h1_assign_report.",
 			client.Program(),
 		),
