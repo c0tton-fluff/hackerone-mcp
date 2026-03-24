@@ -605,7 +605,7 @@ func TestGetAnalytics_RequestShape(t *testing.T) {
 	c.http = srv.Client()
 	c.baseURL = srv.URL
 
-	result, err := c.GetAnalytics(context.Background(), "")
+	result, err := c.GetAnalytics(context.Background(), "", "reports_by_severity", "2026-01-01", "2026-03-24", "month")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
