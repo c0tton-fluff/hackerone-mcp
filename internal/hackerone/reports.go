@@ -48,7 +48,11 @@ func (c *Client) ListReports(
 		params.Add("filter[id][]", id)
 	}
 
-	firstURL := c.baseURL + "/reports?" + params.Encode()
+	reportsPath := "/reports"
+	if c.hacker {
+		reportsPath = "/hackers/me/reports"
+	}
+	firstURL := c.baseURL + reportsPath + "?" + params.Encode()
 	resources, err := c.fetchAllPages(ctx, firstURL, limit)
 	if err != nil {
 		return nil, err
@@ -68,7 +72,7 @@ func (c *Client) GetReportAttachments(
 	if err := ValidateReportID(reportID); err != nil {
 		return nil, err
 	}
-	raw, err := c.get(ctx, fmt.Sprintf("/reports/%s", reportID))
+	raw, err := c.get(ctx, c.reportPath(reportID))
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +91,7 @@ func (c *Client) GetReport(
 		return nil, err
 	}
 
-	raw, err := c.get(ctx, fmt.Sprintf("/reports/%s", reportID))
+	raw, err := c.get(ctx, c.reportPath(reportID))
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +579,11 @@ func (c *Client) CreateReport(
 		},
 	}
 
-	raw, err := c.post(ctx, "/reports", body)
+	createPath := "/reports"
+	if c.hacker {
+		createPath = "/hackers/reports"
+	}
+	raw, err := c.post(ctx, createPath, body)
 	if err != nil {
 		return "", err
 	}

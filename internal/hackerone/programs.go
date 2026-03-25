@@ -17,7 +17,11 @@ func (c *Client) cachedPrograms(ctx context.Context) ([]Program, error) {
 		return c.programCache, nil
 	}
 
-	raw, err := c.get(ctx, "/me/programs?page[size]=100")
+	path := "/me/programs?page[size]=100"
+	if c.hacker {
+		path = "/hackers/programs?page[size]=100"
+	}
+	raw, err := c.get(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -68,15 +72,23 @@ func (c *Client) GetProgramScope(
 	ctx context.Context, program string,
 ) ([]map[string]any, error) {
 	handle := c.resolveProgram(program)
-	programID, err := c.getProgramID(ctx, handle)
-	if err != nil {
-		return nil, err
-	}
 
-	firstURL := fmt.Sprintf(
-		"%s/programs/%s/structured_scopes?page[size]=100",
-		c.baseURL, url.PathEscape(programID),
-	)
+	var firstURL string
+	if c.hacker {
+		firstURL = fmt.Sprintf(
+			"%s/hackers/programs/%s/structured_scopes?page[size]=100",
+			c.baseURL, url.PathEscape(handle),
+		)
+	} else {
+		programID, err := c.getProgramID(ctx, handle)
+		if err != nil {
+			return nil, err
+		}
+		firstURL = fmt.Sprintf(
+			"%s/programs/%s/structured_scopes?page[size]=100",
+			c.baseURL, url.PathEscape(programID),
+		)
+	}
 	resources, err := c.fetchAllPages(ctx, firstURL, 0)
 	if err != nil {
 		return nil, err

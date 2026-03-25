@@ -1,5 +1,7 @@
-# Compiled binary
-hackerone-mcp
+# Compiled binaries
+/h1-client
+/h1-hacker
+/hackerone-mcp
 
 # IDE / editor
 .idea/

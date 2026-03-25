@@ -55,6 +55,7 @@ type Client struct {
 	apiKey       string
 	program      string
 	baseURL      string
+	hacker       bool
 	mu           sync.Mutex
 	programCache []Program
 }
@@ -69,6 +70,19 @@ func NewClient(apiID, apiKey, program string) *Client {
 	}
 }
 
+func NewHackerClient(apiID, apiKey, program string) *Client {
+	return &Client{
+		http:    &http.Client{Timeout: 30 * time.Second},
+		apiID:   apiID,
+		apiKey:  apiKey,
+		program: program,
+		baseURL: defaultBaseURL,
+		hacker:  true,
+	}
+}
+
+func (c *Client) IsHacker() bool { return c.hacker }
+
 func (c *Client) Program() string { return c.program }
 
 func ValidateReportID(id string) error {
@@ -78,6 +92,13 @@ func ValidateReportID(id string) error {
 		)
 	}
 	return nil
+}
+
+func (c *Client) reportPath(reportID string) string {
+	if c.hacker {
+		return fmt.Sprintf("/hackers/reports/%s", reportID)
+	}
+	return fmt.Sprintf("/reports/%s", reportID)
 }
 
 func (c *Client) resolveProgram(handle string) string {
