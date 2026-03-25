@@ -69,6 +69,8 @@ var serveCmd = &cobra.Command{
 		tools.RegisterManageRetestTool(server, client)
 		tools.RegisterGetAnalyticsTool(server, client)
 		tools.RegisterCreateReportTool(server, client)
+		tools.RegisterReportSummaryTool(server, client)
+		tools.RegisterDownloadAttachmentTool(server, client)
 
 		// Parent PID watchdog -- exit if parent dies.
 		parentPid := os.Getppid()

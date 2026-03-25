@@ -22,8 +22,10 @@ func RegisterGetReportTool(
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_get_report",
 		Description: "Get full details of a HackerOne report by ID. " +
-			"Returns report metadata, vulnerability info, and " +
-			"activity timeline (comments, state changes, bounties).",
+			"Returns report metadata, vulnerability info, SLA timers, " +
+			"attachments, and activity timeline (comments, state changes, " +
+			"bounties). When attachments are present, use " +
+			"h1_download_attachment to download them.",
 	}, getReportHandler(client))
 }
 
@@ -52,7 +54,7 @@ func getReportHandler(
 			return nil, GetReportOutput{}, err
 		}
 		if actErr != nil {
-			return nil, GetReportOutput{}, actErr
+			activities = []hackerone.Activity{}
 		}
 
 		output := GetReportOutput{

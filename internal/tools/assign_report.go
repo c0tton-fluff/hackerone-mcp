@@ -10,7 +10,7 @@ import (
 
 type AssignReportInput struct {
 	ReportID string `json:"report_id" jsonschema:"HackerOne report ID"`
-	Username string `json:"username" jsonschema:"Username to assign the report to. Use h1_list_members to find usernames."`
+	Username string `json:"username,omitempty" jsonschema:"Username to assign. Omit or set to 'nobody' to clear the assignee. Use h1_list_members to find usernames."`
 }
 
 type AssignReportOutput struct {
@@ -23,7 +23,8 @@ func RegisterAssignReportTool(
 ) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_assign_report",
-		Description: "Assign a HackerOne report to a user by username. " +
+		Description: "Assign a HackerOne report to a user by username, " +
+			"or clear the assignee by omitting username or setting it to 'nobody'. " +
 			"Use h1_list_members to find usernames.",
 	}, assignReportHandler(client))
 }
@@ -39,9 +40,22 @@ func assignReportHandler(
 		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
 			return nil, AssignReportOutput{}, err
 		}
-		if input.Username == "" {
-			return nil, AssignReportOutput{},
-				fmt.Errorf("username is required")
+
+		if input.Username == "" || input.Username == "nobody" {
+			err := client.UnassignReport(ctx, input.ReportID)
+			if err != nil {
+				return nil, AssignReportOutput{},
+					fmt.Errorf(
+						"unassign report %s: %w",
+						input.ReportID, err,
+					)
+			}
+			msg := fmt.Sprintf(
+				"Report %s assignee cleared",
+				input.ReportID,
+			)
+			output := AssignReportOutput{Success: true, Message: msg}
+			return textResult(msg), output, nil
 		}
 
 		err := client.AssignReport(

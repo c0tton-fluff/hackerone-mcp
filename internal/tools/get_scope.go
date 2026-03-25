@@ -25,8 +25,9 @@ func RegisterGetScopeTool(
 		Name: "h1_get_scope",
 		Description: fmt.Sprintf(
 			"Get program scope and policy. Defaults to %s. "+
-				"Returns program policy text, asset types, "+
-				"identifiers, and eligibility.",
+				"Returns active (non-archived) scopes with asset types, "+
+				"identifiers, bounty eligibility, max severity, "+
+				"and instructions. Also returns program policy text.",
 			client.Program(),
 		),
 	}, getScopeHandler(client))

@@ -18,24 +18,35 @@ const (
 
 // ValidStates contains valid report states for filtering.
 var ValidStates = map[string]bool{
-	"new":            true,
-	"triaged":        true,
-	"resolved":       true,
-	"not-applicable": true,
-	"informative":    true,
-	"duplicate":      true,
-	"spam":           true,
+	"new":                    true,
+	"triaged":                true,
+	"needs-more-info":        true,
+	"resolved":               true,
+	"not-applicable":         true,
+	"informative":            true,
+	"duplicate":              true,
+	"spam":                   true,
+	"pending-program-review": true,
 }
 
 // ValidTransitionStates contains states valid for state_change API calls.
 // "new" is excluded -- it is the initial state and cannot be transitioned to.
 var ValidTransitionStates = map[string]bool{
-	"triaged":        true,
-	"resolved":       true,
-	"not-applicable": true,
-	"informative":    true,
-	"duplicate":      true,
-	"spam":           true,
+	"triaged":                true,
+	"needs-more-info":        true,
+	"resolved":               true,
+	"not-applicable":         true,
+	"informative":            true,
+	"duplicate":              true,
+	"spam":                   true,
+	"pending-program-review": true,
+}
+
+// MessageRequiredStates are states that require a message in the state change.
+var MessageRequiredStates = map[string]bool{
+	"needs-more-info": true,
+	"informative":     true,
+	"duplicate":       true,
 }
 
 type Client struct {

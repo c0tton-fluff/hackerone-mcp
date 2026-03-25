@@ -10,8 +10,8 @@ import (
 
 type UpdateStateInput struct {
 	ReportID string `json:"report_id" jsonschema:"HackerOne report ID"`
-	State    string `json:"state" jsonschema:"New state (triaged/resolved/not-applicable/informative/duplicate/spam)"`
-	Message  string `json:"message,omitempty" jsonschema:"Message to include with state change"`
+	State    string `json:"state" jsonschema:"New state (triaged/needs-more-info/resolved/not-applicable/informative/duplicate/spam/pending-program-review). Message required for needs-more-info, informative, duplicate."`
+	Message  string `json:"message,omitempty" jsonschema:"Message to include with state change. Required for needs-more-info, informative, and duplicate states."`
 }
 
 type UpdateStateOutput struct {
@@ -24,7 +24,10 @@ func RegisterUpdateStateTool(
 ) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "h1_update_state",
-		Description: "Change the state of a HackerOne report. States: triaged, resolved, not-applicable, informative, duplicate.",
+		Description: "Change the state of a HackerOne report. " +
+			"States: triaged, needs-more-info, resolved, not-applicable, " +
+			"informative, duplicate, spam, pending-program-review. " +
+			"Message required for needs-more-info, informative, duplicate.",
 	}, updateStateHandler(client))
 }
 

@@ -170,35 +170,44 @@ func TestFlattenReports_Empty(t *testing.T) {
 	}
 }
 
-func TestSumBounties(t *testing.T) {
+func TestSumBountiesWithBonus(t *testing.T) {
 	r := Resource{
 		Relationships: map[string]Relationship{
 			"bounties": {
 				Data: []any{
 					map[string]any{
 						"attributes": map[string]any{
-							"amount": float64(500),
+							"amount":              float64(500),
+							"awarded_bonus_amount": "100.00",
 						},
 					},
 					map[string]any{
 						"attributes": map[string]any{
-							"amount": "250.50",
+							"amount":              "250.50",
+							"awarded_bonus_amount": float64(50),
 						},
 					},
 				},
 			},
 		},
 	}
-	got := sumBounties(r)
-	if got != 750.50 {
-		t.Errorf("got %f, want 750.50", got)
+	total, bonus := sumBountiesWithBonus(r)
+	if total != 750.50 {
+		t.Errorf("total: got %f, want 750.50", total)
+	}
+	if bonus != 150.00 {
+		t.Errorf("bonus: got %f, want 150.00", bonus)
 	}
 }
 
-func TestSumBounties_NoBounties(t *testing.T) {
+func TestSumBountiesWithBonus_NoBounties(t *testing.T) {
 	r := Resource{}
-	if got := sumBounties(r); got != 0 {
-		t.Errorf("got %f for no bounties, want 0", got)
+	total, bonus := sumBountiesWithBonus(r)
+	if total != 0 {
+		t.Errorf("total: got %f for no bounties, want 0", total)
+	}
+	if bonus != 0 {
+		t.Errorf("bonus: got %f for no bounties, want 0", bonus)
 	}
 }
 

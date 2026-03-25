@@ -58,6 +58,7 @@ type Report struct {
 	CvssScore                float64      `json:"cvss_score,omitzero"`
 	CvssVector               string       `json:"cvss_vector,omitempty"`
 	CvssBreakdown            *CvssMetrics `json:"cvss_breakdown,omitempty"`
+	CvssDescription          string       `json:"cvss_description,omitempty"`
 	WeaknessName             string       `json:"weakness_name,omitempty"`
 	CweID                    string       `json:"cwe_id,omitempty"`
 	CreatedAt                string       `json:"created_at"`
@@ -70,12 +71,37 @@ type Report struct {
 	LastProgramActivityAt    string       `json:"last_program_activity_at,omitempty"`
 	CveIDs                   string       `json:"cve_ids,omitempty"`
 	BountyAmount             float64      `json:"bounty_amount,omitzero"`
+	BountyBonusAmount        float64      `json:"bounty_bonus_amount,omitzero"`
 	ReporterUsername         string       `json:"reporter_username,omitempty"`
 	Assignee                 string       `json:"assignee,omitempty"`
 	ProgramHandle            string       `json:"program_handle,omitempty"`
 	VulnInfo                 string       `json:"vulnerability_information,omitempty"`
 	ImpactDescription        string       `json:"impact,omitempty"`
 	AssetIdentifier          string       `json:"asset_identifier,omitempty"`
+	AssetType                string       `json:"asset_type,omitempty"`
+	IssueTrackerRef          string       `json:"issue_tracker_reference_id,omitempty"`
+	SLA                      *SLATimers   `json:"sla,omitempty"`
+	Attachments              []Attachment `json:"attachments,omitempty"`
+}
+
+type SLATimers struct {
+	FirstResponseElapsed float64 `json:"first_response_elapsed,omitzero"`
+	FirstResponseMissAt  string  `json:"first_response_miss_at,omitempty"`
+	TriageElapsed        float64 `json:"triage_elapsed,omitzero"`
+	TriageMissAt         string  `json:"triage_miss_at,omitempty"`
+	BountyElapsed        float64 `json:"bounty_elapsed,omitzero"`
+	BountyMissAt         string  `json:"bounty_miss_at,omitempty"`
+	ResolutionElapsed    float64 `json:"resolution_elapsed,omitzero"`
+	ResolutionMissAt     string  `json:"resolution_miss_at,omitempty"`
+}
+
+type Attachment struct {
+	ID          string  `json:"id"`
+	FileName    string  `json:"file_name"`
+	ContentType string  `json:"content_type"`
+	FileSize    float64 `json:"file_size"`
+	ExpiringURL string  `json:"expiring_url,omitempty"`
+	CreatedAt   string  `json:"created_at,omitempty"`
 }
 
 type CvssMetrics struct {
@@ -103,11 +129,13 @@ type Member struct {
 type Activity struct {
 	ID           string  `json:"id"`
 	Type         string  `json:"type"`
+	DisplayName  string  `json:"display_name,omitempty"`
 	Message      string  `json:"message,omitempty"`
 	Internal     bool    `json:"internal,omitzero"`
 	CreatedAt    string  `json:"created_at"`
 	Actor        string  `json:"actor,omitempty"`
 	BountyAmount float64 `json:"bounty_amount,omitzero"`
+	BonusAmount  float64 `json:"bonus_amount,omitzero"`
 	OldValue     string  `json:"old_value,omitempty"`
 	NewValue     string  `json:"new_value,omitempty"`
 }

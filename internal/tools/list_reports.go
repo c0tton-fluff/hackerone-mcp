@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
@@ -13,11 +14,9 @@ var validSeverities = map[string]bool{
 	"none": true, "low": true, "medium": true, "high": true, "critical": true,
 }
 
-var validSorts = map[string]bool{
-	"created_at": true, "-created_at": true,
-	"severity_rating": true, "-severity_rating": true,
-	"bounty_awarded_at": true, "-bounty_awarded_at": true,
-	"triaged_at": true, "-triaged_at": true,
+var validSortFields = map[string]bool{
+	"created_at": true, "severity_rating": true,
+	"bounty_awarded_at": true, "triaged_at": true,
 }
 
 type ListReportsInput struct {
@@ -35,7 +34,7 @@ type ListReportsInput struct {
 	ClosedBefore  string   `json:"closed_before,omitempty" jsonschema:"Reports closed before this date (YYYY-MM-DD)"`
 	WeaknessID    string   `json:"weakness_id,omitempty" jsonschema:"Filter by weakness/CWE ID"`
 	ReportIDs     []string `json:"report_ids,omitempty" jsonschema:"Fetch specific report IDs (batch lookup)"`
-	Sort          string   `json:"sort,omitempty" jsonschema:"Sort field (created_at, -created_at, severity_rating, -severity_rating, bounty_awarded_at, -bounty_awarded_at, triaged_at, -triaged_at). Prefix with - for descending."`
+	Sort          string   `json:"sort,omitempty" jsonschema:"Sort field (created_at, severity_rating, bounty_awarded_at, triaged_at). Prefix with - for descending (e.g. -created_at)."`
 	Limit         int      `json:"limit,omitempty" jsonschema:"Max reports to return (default 25, max 1000). Auto-paginates."`
 }
 
@@ -74,9 +73,20 @@ func listReportsHandler(
 			return nil, ListReportsOutput{},
 				fmt.Errorf("invalid severity %q", input.Severity)
 		}
-		if input.Sort != "" && !validSorts[input.Sort] {
-			return nil, ListReportsOutput{},
-				fmt.Errorf("invalid sort %q", input.Sort)
+		var sortField, sortDir string
+		if input.Sort != "" {
+			s := input.Sort
+			if strings.HasPrefix(s, "-") {
+				sortDir = "desc"
+				s = s[1:]
+			} else {
+				sortDir = "asc"
+			}
+			if !validSortFields[s] {
+				return nil, ListReportsOutput{},
+					fmt.Errorf("invalid sort %q", input.Sort)
+			}
+			sortField = s
 		}
 		for _, d := range []struct{ name, val string }{
 			{"created_after", input.CreatedAfter},
@@ -113,7 +123,8 @@ func listReportsHandler(
 			ClosedBefore:  input.ClosedBefore,
 			WeaknessID:    input.WeaknessID,
 			ReportIDs:     input.ReportIDs,
-			Sort:          input.Sort,
+			Sort:          sortField,
+			SortDirection: sortDir,
 			Limit:         input.Limit,
 		})
 		if err != nil {

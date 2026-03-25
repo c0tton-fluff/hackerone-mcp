@@ -61,6 +61,24 @@ func (c *Client) ListReports(
 	return reports, nil
 }
 
+// GetReportAttachments returns just the attachment metadata for a report.
+func (c *Client) GetReportAttachments(
+	ctx context.Context, reportID string,
+) ([]Attachment, error) {
+	if err := ValidateReportID(reportID); err != nil {
+		return nil, err
+	}
+	raw, err := c.get(ctx, fmt.Sprintf("/reports/%s", reportID))
+	if err != nil {
+		return nil, err
+	}
+	var resp SingleResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+	return extractAttachments(resp.Data), nil
+}
+
 // GetReport returns a single report by ID.
 func (c *Client) GetReport(
 	ctx context.Context, reportID string,
@@ -118,8 +136,9 @@ func (c *Client) UpdateState(
 	if !ValidTransitionStates[state] {
 		return fmt.Errorf(
 			"invalid state %q: must be one of triaged, "+
-				"resolved, not-applicable, informative, "+
-				"duplicate, spam",
+				"needs-more-info, resolved, not-applicable, "+
+				"informative, duplicate, spam, "+
+				"pending-program-review",
 			state,
 		)
 	}
@@ -239,6 +258,24 @@ func (c *Client) AssignReport(
 	return err
 }
 
+// UnassignReport clears the assignee on a report.
+func (c *Client) UnassignReport(
+	ctx context.Context, reportID string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "nobody",
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/assignee", reportID), body,
+	)
+	return err
+}
+
 // UpdateTitle changes the title of a report.
 func (c *Client) UpdateTitle(
 	ctx context.Context, reportID, title string,
@@ -328,8 +365,9 @@ func parseActivities(resources []Resource) []Activity {
 	activities := make([]Activity, 0, len(resources))
 	for _, r := range resources {
 		act := Activity{
-			ID:   r.ID,
-			Type: r.Type,
+			ID:          r.ID,
+			Type:        r.Type,
+			DisplayName: activityDisplayName(r.Type),
 		}
 		act.Message, _ = r.Attributes["message"].(string)
 		act.Internal, _ = r.Attributes["internal"].(bool)

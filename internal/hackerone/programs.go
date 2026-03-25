@@ -84,6 +84,9 @@ func (c *Client) GetProgramScope(
 
 	scopes := make([]map[string]any, 0, len(resources))
 	for _, r := range resources {
+		if r.Attributes["archived_at"] != nil {
+			continue
+		}
 		scope := map[string]any{"id": r.ID}
 		maps.Copy(scope, r.Attributes)
 		scopes = append(scopes, scope)
