@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"syscall"
-	"time"
 
 	"github.com/c0tton-fluff/hackerone-mcp/internal/hackerone"
 	"github.com/c0tton-fluff/hackerone-mcp/internal/tools"
@@ -40,17 +38,6 @@ func main() {
 	tools.RegisterCreateReportTool(server, client)
 	tools.RegisterReportSummaryTool(server, client)
 	tools.RegisterDownloadAttachmentTool(server, client)
-
-	// Parent PID watchdog -- exit if parent dies.
-	ppid := os.Getppid()
-	go func() {
-		for {
-			time.Sleep(2 * time.Second)
-			if err := syscall.Kill(ppid, 0); err != nil {
-				os.Exit(0)
-			}
-		}
-	}()
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
