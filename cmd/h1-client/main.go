@@ -26,7 +26,7 @@ func main() {
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "h1-client",
-			Version: "1.1.0",
+			Version: "1.2.0",
 		},
 		nil,
 	)
@@ -48,6 +48,7 @@ func main() {
 	tools.RegisterAssignReportTool(server, client)
 	tools.RegisterAddSummaryTool(server, client)
 	tools.RegisterUpdateTitleTool(server, client)
+	tools.RegisterUpdatePolicyTool(server, client)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)

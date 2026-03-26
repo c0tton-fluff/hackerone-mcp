@@ -119,6 +119,7 @@ type CvssMetrics struct {
 type Program struct {
 	ID     string `json:"id"`
 	Handle string `json:"handle"`
+	Policy string `json:"policy,omitempty"`
 }
 
 type Member struct {

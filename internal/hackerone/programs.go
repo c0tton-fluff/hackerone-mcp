@@ -33,6 +33,9 @@ func (c *Client) cachedPrograms(ctx context.Context) ([]Program, error) {
 		if h, ok := r.Attributes["handle"].(string); ok {
 			p.Handle = h
 		}
+		if pol, ok := r.Attributes["policy"].(string); ok {
+			p.Policy = pol
+		}
 		programs = append(programs, p)
 	}
 	c.programCache = programs
@@ -147,5 +150,29 @@ func (c *Client) GetProgramPolicy(
 
 	policy, _ := resp.Data.Attributes["policy"].(string)
 	return policy, nil
+}
+
+// UpdateProgramPolicy replaces the policy page for a program.
+func (c *Client) UpdateProgramPolicy(
+	ctx context.Context, program, policy string,
+) error {
+	handle := c.resolveProgram(program)
+	programID, err := c.getProgramID(ctx, handle)
+	if err != nil {
+		return err
+	}
+
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "program-policy",
+			"attributes": map[string]any{
+				"policy": policy,
+			},
+		},
+	}
+
+	path := fmt.Sprintf("/programs/%s/policy", url.PathEscape(programID))
+	_, err = c.put(ctx, path, body)
+	return err
 }
 

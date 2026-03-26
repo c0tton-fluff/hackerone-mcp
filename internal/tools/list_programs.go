@@ -8,7 +8,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type ListProgramsInput struct{}
+type ListProgramsInput struct {
+	IncludePolicy bool `json:"include_policy"`
+}
 
 type ListProgramsOutput struct {
 	Programs []hackerone.Program `json:"programs"`
@@ -22,7 +24,9 @@ func RegisterListProgramsTool(
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_list_programs",
 		Description: "List all HackerOne programs accessible to " +
-			"the API token. Shows handles and IDs.",
+			"the API token. Shows handles and IDs. " +
+			"Set include_policy=true to also return each " +
+			"program's policy text (the page hackers see).",
 	}, listProgramsHandler(client))
 }
 
@@ -38,6 +42,16 @@ func listProgramsHandler(
 		if err != nil {
 			return nil, ListProgramsOutput{},
 				fmt.Errorf("list programs: %w", err)
+		}
+
+		if !input.IncludePolicy {
+			stripped := make([]hackerone.Program, len(programs))
+			for i, p := range programs {
+				stripped[i] = hackerone.Program{
+					ID: p.ID, Handle: p.Handle,
+				}
+			}
+			programs = stripped
 		}
 
 		output := ListProgramsOutput{
