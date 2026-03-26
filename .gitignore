@@ -26,6 +26,9 @@
 # Test coverage
 coverage.out
 
+# Docs (local notes, not published)
+docs/
+
 # Review artifacts
 TODO.md
 TODO.md.bak
