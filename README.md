@@ -65,40 +65,30 @@ security add-generic-password -s hackerone-program -a hackerone -w "your-program
 }
 ```
 
-## Tools (24)
+## Tools (14)
 
 **Read**
 - `h1_list_programs` - list accessible programs
-- `h1_list_reports` - list/filter reports (state, severity, dates, keyword, batch IDs)
+- `h1_list_reports` - list/filter reports (state, severity, reporter, assignee, dates, keyword, sort)
 - `h1_get_report` - full report details with timeline and attachments
 - `h1_get_scope` - program scope and policy
 - `h1_list_members` - program team members
 - `h1_report_summary` - aggregate stats by state/severity/bounty
 - `h1_download_attachment` - download report attachments to /tmp
-- `h1_get_analytics` - program analytics (response times, stats)
 - `h1_incremental_activities` - recent activity feed
 
 **Triage**
 - `h1_add_comment` - add internal/public comments
-- `h1_update_state` - change report state (triage, resolve, close)
-- `h1_bulk_update_state` - batch state changes
-- `h1_mark_duplicate` - mark as duplicate with original ID
-- `h1_award_bounty` - award bounty and bonus
+- `h1_update_state` - change report state (triage, resolve, close, duplicate with original_report_id)
 - `h1_update_severity` - set CVSS rating
 - `h1_assign_report` - assign to team member
 - `h1_add_summary` - add/update report summary
-- `h1_update_cves` - set CVE IDs
-- `h1_close_comments` - lock report comments
-- `h1_manage_retest` - request/manage retests
 - `h1_update_title` - update report title
-- `h1_update_tags` - add/remove tags
-- `h1_update_weakness` - set weakness/CWE
-- `h1_request_disclosure` - request public disclosure
 
 ## Architecture
 
 ```
-cmd/h1-client/main.go   # MCP server entry point (24 tools)
+cmd/h1-client/main.go   # MCP server entry point (14 tools)
 internal/
   hackerone/              # API client, pagination, rate limiting
   tools/                  # tool definitions and handlers

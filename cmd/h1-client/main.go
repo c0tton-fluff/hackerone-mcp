@@ -39,25 +39,15 @@ func main() {
 	tools.RegisterListMembersTool(server, client)
 	tools.RegisterReportSummaryTool(server, client)
 	tools.RegisterDownloadAttachmentTool(server, client)
-	tools.RegisterGetAnalyticsTool(server, client)
 	tools.RegisterIncrementalActivitiesTool(server, client)
 
 	// Triage tools
 	tools.RegisterAddCommentTool(server, client)
 	tools.RegisterUpdateStateTool(server, client)
-	tools.RegisterBulkUpdateStateTool(server, client)
-	tools.RegisterMarkDuplicateTool(server, client)
-	tools.RegisterAwardBountyTool(server, client)
 	tools.RegisterUpdateSeverityTool(server, client)
 	tools.RegisterAssignReportTool(server, client)
 	tools.RegisterAddSummaryTool(server, client)
-	tools.RegisterUpdateCVEsTool(server, client)
-	tools.RegisterCloseCommentsTool(server, client)
-	tools.RegisterManageRetestTool(server, client)
 	tools.RegisterUpdateTitleTool(server, client)
-	tools.RegisterUpdateTagsTool(server, client)
-	tools.RegisterUpdateWeaknessTool(server, client)
-	tools.RegisterRequestDisclosureTool(server, client)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)

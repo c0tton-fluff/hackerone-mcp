@@ -149,26 +149,3 @@ func (c *Client) GetProgramPolicy(
 	return policy, nil
 }
 
-// GetAnalytics returns program analytics data.
-func (c *Client) GetAnalytics(
-	ctx context.Context, program, queryKey, startDate, endDate, interval string,
-) (map[string]any, error) {
-	handle := c.resolveProgram(program)
-	params := url.Values{}
-	params.Set("filter[program][]", handle)
-	params.Set("filter[query_key]", queryKey)
-	params.Set("filter[start_date]", startDate)
-	params.Set("filter[end_date]", endDate)
-	params.Set("filter[interval]", interval)
-
-	raw, err := c.get(ctx, "/analytics?"+params.Encode())
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]any
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, fmt.Errorf("parse analytics response: %w", err)
-	}
-	return result, nil
-}

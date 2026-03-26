@@ -157,38 +157,6 @@ func (c *Client) UpdateState(
 	return err
 }
 
-// MaxBountyAmount is the upper bound for a single bounty award.
-const MaxBountyAmount = 50000.0
-
-// AwardBounty grants a bounty on a report.
-func (c *Client) AwardBounty(
-	ctx context.Context, reportID string,
-	amount float64, message string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	if amount > MaxBountyAmount {
-		return fmt.Errorf(
-			"bounty amount $%.2f exceeds maximum $%.2f",
-			amount, MaxBountyAmount,
-		)
-	}
-	body := map[string]any{
-		"data": map[string]any{
-			"type": "bounty",
-			"attributes": map[string]any{
-				"amount":  amount,
-				"message": message,
-			},
-		},
-	}
-	_, err := c.post(
-		ctx, fmt.Sprintf("/reports/%s/bounties", reportID), body,
-	)
-	return err
-}
-
 // MarkDuplicate changes a report to duplicate state linking to the original.
 func (c *Client) MarkDuplicate(
 	ctx context.Context, reportID, originalID string,
@@ -297,69 +265,6 @@ func (c *Client) UpdateTitle(
 	return err
 }
 
-// UpdateWeakness sets the CWE/weakness on a report.
-func (c *Client) UpdateWeakness(
-	ctx context.Context, reportID, weaknessID string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	body := map[string]any{
-		"data": map[string]any{
-			"type": "weakness",
-			"attributes": map[string]any{
-				"weakness_id": weaknessID,
-			},
-		},
-	}
-	_, err := c.put(
-		ctx, fmt.Sprintf("/reports/%s/weakness", reportID), body,
-	)
-	return err
-}
-
-// UpdateTags sets the tags on a report (replaces all existing tags).
-func (c *Client) UpdateTags(
-	ctx context.Context, reportID string, tagNames []string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	body := map[string]any{
-		"data": map[string]any{
-			"type": "report-tag",
-			"attributes": map[string]any{
-				"tag_names": tagNames,
-			},
-		},
-	}
-	_, err := c.put(
-		ctx, fmt.Sprintf("/reports/%s/report_tags", reportID), body,
-	)
-	return err
-}
-
-// RequestDisclosure posts a disclosure request on a report.
-func (c *Client) RequestDisclosure(
-	ctx context.Context, reportID, substate string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	body := map[string]any{
-		"data": map[string]any{
-			"type": "disclosure-request",
-			"attributes": map[string]any{
-				"substate": substate,
-			},
-		},
-	}
-	_, err := c.post(
-		ctx, fmt.Sprintf("/reports/%s/disclosure_requests", reportID), body,
-	)
-	return err
-}
-
 // parseActivities converts JSON:API resources into Activity structs.
 func parseActivities(resources []Resource) []Activity {
 	activities := make([]Activity, 0, len(resources))
@@ -451,83 +356,5 @@ func (c *Client) AddSummary(
 	return err
 }
 
-// UpdateCVEs sets CVE IDs on a report.
-func (c *Client) UpdateCVEs(
-	ctx context.Context, reportID string, cveIDs []string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	body := map[string]any{
-		"data": map[string]any{
-			"type": "cve",
-			"attributes": map[string]any{
-				"cve_ids": cveIDs,
-			},
-		},
-	}
-	_, err := c.put(
-		ctx, fmt.Sprintf("/reports/%s/cves", reportID), body,
-	)
-	return err
-}
 
-// CloseComments locks comments on a report.
-func (c *Client) CloseComments(
-	ctx context.Context, reportID string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	_, err := c.put(
-		ctx, fmt.Sprintf("/reports/%s/close_comments", reportID),
-		map[string]any{},
-	)
-	return err
-}
-
-var validRetestActions = map[string]bool{
-	"request": true, "approve": true, "reject": true, "cancel": true,
-}
-
-// ManageRetest handles retest lifecycle (request/approve/reject/cancel).
-func (c *Client) ManageRetest(
-	ctx context.Context, reportID, action, summary string,
-) error {
-	if err := ValidateReportID(reportID); err != nil {
-		return err
-	}
-	if !validRetestActions[action] {
-		return fmt.Errorf(
-			"invalid retest action %q: must be request, approve, reject, or cancel",
-			action,
-		)
-	}
-
-	base := fmt.Sprintf("/reports/%s/retests", reportID)
-
-	switch action {
-	case "request":
-		body := map[string]any{
-			"data": map[string]any{
-				"type": "retest-request",
-				"attributes": map[string]any{
-					"summary": summary,
-				},
-			},
-		}
-		_, err := c.post(ctx, base, body)
-		return err
-	case "approve":
-		_, err := c.post(ctx, base+"/approve", map[string]any{})
-		return err
-	case "reject":
-		_, err := c.post(ctx, base+"/reject", map[string]any{})
-		return err
-	case "cancel":
-		_, err := c.delete(ctx, base+"/cancel")
-		return err
-	}
-	return nil
-}
 
