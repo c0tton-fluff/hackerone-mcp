@@ -44,6 +44,10 @@ func updateStateHandler(
 		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
 			return nil, UpdateStateOutput{}, err
 		}
+		if hackerone.MessageRequiredStates[input.State] && input.Message == "" {
+			return nil, UpdateStateOutput{},
+				fmt.Errorf("message is required when changing state to %q", input.State)
+		}
 
 		var err error
 		if input.State == "duplicate" && input.OriginalReportID != "" {

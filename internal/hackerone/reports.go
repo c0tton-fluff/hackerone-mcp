@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 // ListReports returns reports with filtering and auto-pagination.
@@ -24,17 +25,30 @@ func (c *Client) ListReports(
 	params := url.Values{}
 	params.Set("filter[program][]", program)
 	params.Set("page[size]", strconv.Itoa(min(limit, 100)))
+
+	// Multi-value filters: split comma-separated values.
 	for _, kv := range []struct{ key, val string }{
 		{"filter[state][]", f.State},
 		{"filter[severity][]", f.Severity},
 		{"filter[reporter][]", f.Reporter},
+		{"filter[assignee][]", f.Assignee},
+	} {
+		if kv.val == "" {
+			continue
+		}
+		for v := range strings.SplitSeq(kv.val, ",") {
+			if s := strings.TrimSpace(v); s != "" {
+				params.Add(kv.key, s)
+			}
+		}
+	}
+	for _, kv := range []struct{ key, val string }{
 		{"filter[created_at__gt]", f.CreatedAfter},
 		{"filter[created_at__lt]", f.CreatedBefore},
 		{"filter[triaged_at__gt]", f.TriagedAfter},
 		{"filter[triaged_at__lt]", f.TriagedBefore},
 		{"filter[closed_at__gt]", f.ClosedAfter},
 		{"filter[closed_at__lt]", f.ClosedBefore},
-		{"filter[assignee][]", f.Assignee},
 		{"filter[keyword]", f.Keyword},
 		{"filter[weakness_id][]", f.WeaknessID},
 		{"sort", f.Sort},
@@ -183,15 +197,25 @@ func (c *Client) MarkDuplicate(
 }
 
 // UpdateSeverity sets the severity rating and optional CVSS vector on a report.
+// When a CVSS vector is provided, it is expanded into individual API fields.
 func (c *Client) UpdateSeverity(
 	ctx context.Context, reportID, rating, cvssVector string,
 ) error {
 	if err := ValidateReportID(reportID); err != nil {
 		return err
 	}
-	attrs := map[string]any{"rating": rating}
+	attrs := map[string]any{}
+	if rating != "" {
+		attrs["rating"] = rating
+	}
 	if cvssVector != "" {
-		attrs["cvss_vector_string"] = cvssVector
+		expanded, err := expandCvssVector(cvssVector)
+		if err != nil {
+			return fmt.Errorf("parse CVSS vector: %w", err)
+		}
+		for k, v := range expanded {
+			attrs[k] = v
+		}
 	}
 	body := map[string]any{
 		"data": map[string]any{
@@ -218,6 +242,25 @@ func (c *Client) AssignReport(
 			"attributes": map[string]any{
 				"username": username,
 			},
+		},
+	}
+	_, err := c.put(
+		ctx, fmt.Sprintf("/reports/%s/assignee", reportID), body,
+	)
+	return err
+}
+
+// AssignReportToGroup assigns a report to a group by numeric ID.
+func (c *Client) AssignReportToGroup(
+	ctx context.Context, reportID, groupID string,
+) error {
+	if err := ValidateReportID(reportID); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "group",
+			"id":   groupID,
 		},
 	}
 	_, err := c.put(

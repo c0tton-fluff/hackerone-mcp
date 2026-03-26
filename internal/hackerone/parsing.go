@@ -1,8 +1,11 @@
 package hackerone
 
 import (
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // cvssLabels maps CVSS 3.x metric abbreviations to human-readable values.
@@ -118,6 +121,102 @@ func parseCvssVector(vector string) *CvssMetrics {
 	}
 }
 
+// cvssAPIFields maps CVSS vector abbreviations to H1 API attribute names and values.
+var cvssAPIFields = map[string]struct {
+	field  string
+	values map[string]string
+}{
+	"AV": {field: "attack_vector", values: map[string]string{"N": "network", "A": "adjacent", "L": "local", "P": "physical"}},
+	"AC": {field: "attack_complexity", values: map[string]string{"L": "low", "H": "high"}},
+	"PR": {field: "privileges_required", values: map[string]string{"N": "none", "L": "low", "H": "high"}},
+	"UI": {field: "user_interaction", values: map[string]string{"N": "none", "R": "required"}},
+	"S":  {field: "scope", values: map[string]string{"U": "unchanged", "C": "changed"}},
+	"C":  {field: "confidentiality", values: map[string]string{"N": "none", "L": "low", "H": "high"}},
+	"I":  {field: "integrity", values: map[string]string{"N": "none", "L": "low", "H": "high"}},
+	"A":  {field: "availability", values: map[string]string{"N": "none", "L": "low", "H": "high"}},
+}
+
+// expandCvssVector parses a CVSS 3.x vector string into H1 API severity attributes.
+// Accepts "AV:N/AC:L/..." or "CVSS:3.1/AV:N/AC:L/..." formats.
+func expandCvssVector(vector string) (map[string]any, error) {
+	if strings.HasPrefix(vector, "CVSS:") {
+		if idx := strings.Index(vector, "/"); idx != -1 {
+			vector = vector[idx+1:]
+		}
+	}
+	attrs := map[string]any{}
+	for _, part := range strings.Split(vector, "/") {
+		metric, value, ok := strings.Cut(part, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid metric %q: expected KEY:VALUE", part)
+		}
+		def, known := cvssAPIFields[metric]
+		if !known {
+			return nil, fmt.Errorf("unknown CVSS metric %q", metric)
+		}
+		expanded, valid := def.values[value]
+		if !valid {
+			return nil, fmt.Errorf("invalid value %q for metric %s", value, metric)
+		}
+		attrs[def.field] = expanded
+	}
+	if len(attrs) == 0 {
+		return nil, fmt.Errorf("no valid metrics in vector")
+	}
+	return attrs, nil
+}
+
+// FormatSLASummary returns a human-readable SLA status string.
+func FormatSLASummary(sla *SLATimers) string {
+	if sla == nil {
+		return ""
+	}
+	type item struct {
+		label   string
+		elapsed float64
+		missAt  string
+	}
+	items := []item{
+		{"First response", sla.FirstResponseElapsed, sla.FirstResponseMissAt},
+		{"Triage", sla.TriageElapsed, sla.TriageMissAt},
+		{"Bounty", sla.BountyElapsed, sla.BountyMissAt},
+		{"Resolution", sla.ResolutionElapsed, sla.ResolutionMissAt},
+	}
+	var parts []string
+	for _, it := range items {
+		if it.elapsed > 0 {
+			parts = append(parts, fmt.Sprintf("%s: %s", it.label, formatDuration(it.elapsed)))
+		} else if it.missAt != "" {
+			if t, err := time.Parse(time.RFC3339, it.missAt); err == nil {
+				remaining := time.Until(t)
+				if remaining > 0 {
+					parts = append(parts, fmt.Sprintf("%s: %s remaining", it.label, formatDuration(remaining.Seconds())))
+				} else {
+					parts = append(parts, fmt.Sprintf("%s: OVERDUE", it.label))
+				}
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " | ")
+}
+
+func formatDuration(seconds float64) string {
+	s := int(math.Round(seconds))
+	switch {
+	case s < 60:
+		return fmt.Sprintf("%ds", s)
+	case s < 3600:
+		return fmt.Sprintf("%dm", s/60)
+	case s < 86400:
+		return fmt.Sprintf("%dh", s/3600)
+	default:
+		return fmt.Sprintf("%dd", s/86400)
+	}
+}
+
 // extractActivityDetails pulls bounty_amount, bonus_amount, and old/new
 // change values from activity attributes based on activity type.
 func extractActivityDetails(act *Activity, attrs map[string]any) {
@@ -230,6 +329,7 @@ func flattenOneReport(r Resource) Report {
 	report.AssetType = relString(r, "structured_scope", "asset_type")
 	report.BountyAmount, report.BountyBonusAmount = sumBountiesWithBonus(r)
 	report.SLA = extractSLA(a)
+	report.SLASummary = FormatSLASummary(report.SLA)
 	report.Attachments = extractAttachments(r)
 
 	return report

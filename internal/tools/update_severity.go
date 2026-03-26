@@ -14,8 +14,8 @@ var validRatings = map[string]bool{
 
 type UpdateSeverityInput struct {
 	ReportID   string `json:"report_id" jsonschema:"HackerOne report ID"`
-	Rating     string `json:"rating" jsonschema:"Severity rating (none/low/medium/high/critical)"`
-	CvssVector string `json:"cvss_vector,omitempty" jsonschema:"CVSS 3.x vector string (e.g. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)"`
+	Rating     string `json:"rating,omitempty" jsonschema:"Severity rating (none/low/medium/high/critical). Required unless cvss_vector is provided."`
+	CvssVector string `json:"cvss_vector,omitempty" jsonschema:"CVSS 3.x vector string (e.g. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). Expanded into individual API fields."`
 }
 
 type UpdateSeverityOutput struct {
@@ -44,7 +44,11 @@ func updateSeverityHandler(
 		if err := hackerone.ValidateReportID(input.ReportID); err != nil {
 			return nil, UpdateSeverityOutput{}, err
 		}
-		if !validRatings[input.Rating] {
+		if input.Rating == "" && input.CvssVector == "" {
+			return nil, UpdateSeverityOutput{},
+				fmt.Errorf("rating or cvss_vector required")
+		}
+		if input.Rating != "" && !validRatings[input.Rating] {
 			return nil, UpdateSeverityOutput{},
 				fmt.Errorf("invalid rating %q", input.Rating)
 		}

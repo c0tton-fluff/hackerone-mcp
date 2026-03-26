@@ -21,8 +21,8 @@ var validSortFields = map[string]bool{
 
 type ListReportsInput struct {
 	Program       string   `json:"program,omitempty" jsonschema:"Program handle (defaults to configured program)"`
-	State         string   `json:"state,omitempty" jsonschema:"Filter by state (new/triaged/resolved/not-applicable/informative/duplicate)"`
-	Severity      string   `json:"severity,omitempty" jsonschema:"Filter by severity (none/low/medium/high/critical)"`
+	State         string   `json:"state,omitempty" jsonschema:"Filter by state, comma-separated (new,triaged,resolved,not-applicable,informative,duplicate,spam)"`
+	Severity      string   `json:"severity,omitempty" jsonschema:"Filter by severity, comma-separated (none,low,medium,high,critical)"`
 	Reporter      string   `json:"reporter,omitempty" jsonschema:"Filter by reporter username"`
 	Assignee      string   `json:"assignee,omitempty" jsonschema:"Filter by assignee username"`
 	Keyword       string   `json:"keyword,omitempty" jsonschema:"Search reports by keyword in title and vulnerability info"`
@@ -65,13 +65,17 @@ func listReportsHandler(
 		req *mcp.CallToolRequest,
 		input ListReportsInput,
 	) (*mcp.CallToolResult, ListReportsOutput, error) {
-		if input.State != "" && !hackerone.ValidStates[input.State] {
-			return nil, ListReportsOutput{},
-				fmt.Errorf("invalid state %q", input.State)
+		for s := range strings.SplitSeq(input.State, ",") {
+			if s = strings.TrimSpace(s); s != "" && !hackerone.ValidStates[s] {
+				return nil, ListReportsOutput{},
+					fmt.Errorf("invalid state %q", s)
+			}
 		}
-		if input.Severity != "" && !validSeverities[input.Severity] {
-			return nil, ListReportsOutput{},
-				fmt.Errorf("invalid severity %q", input.Severity)
+		for s := range strings.SplitSeq(input.Severity, ",") {
+			if s = strings.TrimSpace(s); s != "" && !validSeverities[s] {
+				return nil, ListReportsOutput{},
+					fmt.Errorf("invalid severity %q", s)
+			}
 		}
 		var sortField, sortDir string
 		if input.Sort != "" {

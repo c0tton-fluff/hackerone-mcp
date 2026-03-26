@@ -81,6 +81,7 @@ type Report struct {
 	AssetType                string       `json:"asset_type,omitempty"`
 	IssueTrackerRef          string       `json:"issue_tracker_reference_id,omitempty"`
 	SLA                      *SLATimers   `json:"sla,omitempty"`
+	SLASummary               string       `json:"sla_summary,omitempty"`
 	Attachments              []Attachment `json:"attachments,omitempty"`
 }
 

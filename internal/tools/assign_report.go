@@ -10,7 +10,8 @@ import (
 
 type AssignReportInput struct {
 	ReportID string `json:"report_id" jsonschema:"HackerOne report ID"`
-	Username string `json:"username,omitempty" jsonschema:"Username to assign. Omit or set to 'nobody' to clear the assignee. Use h1_list_members to find usernames."`
+	Username string `json:"username,omitempty" jsonschema:"Username to assign. Use h1_list_members to find usernames. Omit for group assignment or 'nobody' to clear."`
+	GroupID  string `json:"group_id,omitempty" jsonschema:"Numeric group ID to assign. Use instead of username for group assignment."`
 }
 
 type AssignReportOutput struct {
@@ -23,8 +24,8 @@ func RegisterAssignReportTool(
 ) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "h1_assign_report",
-		Description: "Assign a HackerOne report to a user by username, " +
-			"or clear the assignee by omitting username or setting it to 'nobody'. " +
+		Description: "Assign a HackerOne report to a user (by username), " +
+			"a group (by group_id), or clear the assignee (username='nobody' or omit both). " +
 			"Use h1_list_members to find usernames.",
 	}, assignReportHandler(client))
 }
@@ -41,38 +42,25 @@ func assignReportHandler(
 			return nil, AssignReportOutput{}, err
 		}
 
-		if input.Username == "" || input.Username == "nobody" {
-			err := client.UnassignReport(ctx, input.ReportID)
-			if err != nil {
-				return nil, AssignReportOutput{},
-					fmt.Errorf(
-						"unassign report %s: %w",
-						input.ReportID, err,
-					)
-			}
-			msg := fmt.Sprintf(
-				"Report %s assignee cleared",
-				input.ReportID,
-			)
-			output := AssignReportOutput{Success: true, Message: msg}
-			return textResult(msg), output, nil
+		var msg string
+		var err error
+
+		switch {
+		case input.GroupID != "":
+			err = client.AssignReportToGroup(ctx, input.ReportID, input.GroupID)
+			msg = fmt.Sprintf("Report %s assigned to group %s", input.ReportID, input.GroupID)
+		case input.Username == "" || input.Username == "nobody":
+			err = client.UnassignReport(ctx, input.ReportID)
+			msg = fmt.Sprintf("Report %s assignee cleared", input.ReportID)
+		default:
+			err = client.AssignReport(ctx, input.ReportID, input.Username)
+			msg = fmt.Sprintf("Report %s assigned to %s", input.ReportID, input.Username)
 		}
 
-		err := client.AssignReport(
-			ctx, input.ReportID, input.Username,
-		)
 		if err != nil {
 			return nil, AssignReportOutput{},
-				fmt.Errorf(
-					"assign report %s: %w",
-					input.ReportID, err,
-				)
+				fmt.Errorf("assign report %s: %w", input.ReportID, err)
 		}
-
-		msg := fmt.Sprintf(
-			"Report %s assigned to %s",
-			input.ReportID, input.Username,
-		)
 		output := AssignReportOutput{Success: true, Message: msg}
 		return textResult(msg), output, nil
 	}
