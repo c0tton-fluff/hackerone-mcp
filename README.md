@@ -1,15 +1,13 @@
 # hackerone-mcp
 
-Two MCP servers for HackerOne - one for **triage teams** managing a program, one for **hackers** hunting bugs. Both use the HackerOne API v1 over stdio transport.
+MCP server for HackerOne **triage teams** managing a program. Full read/write access to reports, triage workflows, bounties, and program management via the HackerOne API v1 over stdio transport.
+
+Looking for the **hacker** MCP server? See [h1-hacker](https://github.com/c0tton-fluff/h1-hacker).
 
 ## Install
 
 ```bash
-# Triage / VDP management (25 tools)
 go install github.com/c0tton-fluff/hackerone-mcp/cmd/h1-client@latest
-
-# Bug bounty hunting (7 tools)
-go install github.com/c0tton-fluff/hackerone-mcp/cmd/h1-hacker@latest
 ```
 
 Or build from source:
@@ -18,12 +16,9 @@ Or build from source:
 git clone https://github.com/c0tton-fluff/hackerone-mcp.git
 cd hackerone-mcp
 go build -o h1-client ./cmd/h1-client
-go build -o h1-hacker ./cmd/h1-hacker
 ```
 
 ## Configuration
-
-Both servers need HackerOne API credentials as environment variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -54,7 +49,7 @@ Both servers need HackerOne API credentials as environment variables:
 Store credentials in Keychain and use the included `launch.sh` wrapper:
 
 ```bash
-security add-generic-password -s hackerone-api-id -a hackerone -w "your-api-id" (this is simply your username)
+security add-generic-password -s hackerone-api-id -a hackerone -w "your-api-id"
 security add-generic-password -s hackerone-api-token -a hackerone -w "your-api-token"
 security add-generic-password -s hackerone-program -a hackerone -w "your-program-handle"
 ```
@@ -70,13 +65,7 @@ security add-generic-password -s hackerone-program -a hackerone -w "your-program
 }
 ```
 
----
-
-## H1-Client (Triage / VDP)
-
-For security teams managing a HackerOne program. Full read/write access to reports, triage workflows, bounties, and program management.
-
-### Tools (25)
+## Tools (24)
 
 **Read**
 - `h1_list_programs` - list accessible programs
@@ -105,39 +94,16 @@ For security teams managing a HackerOne program. Full read/write access to repor
 - `h1_update_tags` - add/remove tags
 - `h1_update_weakness` - set weakness/CWE
 - `h1_request_disclosure` - request public disclosure
-- `h1_create_report` - submit a report
-
----
-
-## H1-Hacker (Bug Bounty)
-
-For bug bounty hunters. Read-only access to programs, scopes, and reports, plus report submission. No triage or program management tools.
-
-### Tools (7)
-
-- `h1_list_programs` - list accessible programs
-- `h1_list_reports` - list/filter your reports
-- `h1_get_report` - full report details
-- `h1_get_scope` - program scope and policy
-- `h1_create_report` - submit a new report
-- `h1_report_summary` - your bounty stats
-- `h1_download_attachment` - download report attachments
-
----
 
 ## Architecture
 
 ```
-cmd/
-  h1-client/main.go     # triage server (25 tools)
-  h1-hacker/main.go     # hacker server (7 tools)
+cmd/h1-client/main.go   # MCP server entry point (24 tools)
 internal/
-  hackerone/             # shared API client, pagination, rate limiting
-  tools/                 # shared tool definitions (each server picks its subset)
+  hackerone/              # API client, pagination, rate limiting
+  tools/                  # tool definitions and handlers
 launch.sh                # macOS Keychain credential wrapper
 ```
-
-Both binaries share `internal/hackerone/` (HTTP client, auth, pagination, rate limiting) and `internal/tools/` (tool handlers). Each binary registers only the tools it needs.
 
 ## License
 
