@@ -58,7 +58,6 @@ func main() {
 	tools.RegisterUpdateTagsTool(server, client)
 	tools.RegisterUpdateWeaknessTool(server, client)
 	tools.RegisterRequestDisclosureTool(server, client)
-	tools.RegisterCreateReportTool(server, client)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)

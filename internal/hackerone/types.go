@@ -140,12 +140,3 @@ type Activity struct {
 	NewValue     string  `json:"new_value,omitempty"`
 }
 
-// CreateReportParams holds inputs for creating a new report.
-type CreateReportParams struct {
-	Program    string
-	Title      string
-	VulnInfo   string
-	Severity   string
-	WeaknessID string
-	ScopeID    string
-}
